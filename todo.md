@@ -78,3 +78,62 @@ License: dual **MIT OR Apache-2.0**. Author: **TPT Solutions**.
 - [ ] Publish crates to crates.io (`axiom-core`, `axiom-macros`, `axiom-zk`, backend adapters, `tpt-axiom` umbrella crate)
 - [ ] Set up `docs.rs` documentation
 - [ ] Tag `v0.1.0` release
+
+## AI & Probabilistic Intelligence Foundation
+
+### Probabilistic Type System
+- [ ] Define a first-class `Probability` type with validated [0,1] semantics.
+- [ ] Define `Confidence` as a distinct semantic type from probability.
+- [ ] Define `Distribution<T>` as a generic probabilistic value.
+- [ ] Define `Uncertain<T>` for values with explicitly represented uncertainty.
+- [ ] Define `Categorical<T>` for finite outcome distributions.
+- [ ] Define `Bernoulli` and other fundamental distributions.
+- [ ] Define `Score<T>` for probabilistic/ordinal scoring outputs.
+- [ ] Define `Decision<T>` for typed probabilistic decisions.
+- [ ] Define `Evidence<T>` for observations supporting probabilistic values.
+- [ ] Define provenance metadata for probabilistic results.
+- [ ] Ensure all core types are strongly typed, composable, serialisable and backend-independent.
+
+### Uncertainty Operations
+- [ ] Implement probability validation and normalisation.
+- [ ] Implement distribution transformations.
+- [ ] Implement uncertainty-preserving arithmetic.
+- [ ] Implement probability and confidence propagation.
+- [ ] Implement evidence combination.
+- [ ] Implement conditional probability primitives.
+- [ ] Implement Bayesian update primitives.
+- [ ] Implement threshold and escalation primitives.
+- [ ] Implement conversion from probabilistic results to deterministic decisions through explicit policies.
+- [ ] Preserve uncertainty information unless explicitly discarded by the caller.
+
+### AI Decision Types
+- [ ] Define binary yes/no decision representation.
+- [ ] Define categorical choice representation.
+- [ ] Define ranking/selection representation.
+- [ ] Define numerical scoring representation.
+- [ ] Define multi-label decision representation.
+- [ ] Define abstention/insufficient-confidence representation.
+- [ ] Define competing-hypothesis representation.
+- [ ] Define decision provenance and backend metadata.
+- [ ] Define calibration metadata where available.
+
+### Verification & Trust
+- [ ] Define deterministic validation of all probabilistic outputs.
+- [ ] Define reproducibility metadata.
+- [ ] Define computation provenance.
+- [ ] Define evidence provenance.
+- [ ] Define verification boundaries between probabilistic and deterministic computation.
+- [ ] Design a proof interface for verifiable probabilistic computations.
+- [ ] Define interfaces suitable for future formal verification.
+- [ ] Define interfaces suitable for future zero-knowledge verification.
+- [ ] Ensure cryptographic/proof mechanisms remain optional and do not contaminate the core type system.
+
+### Interoperability
+- [ ] Define a stable serialisation format for probabilistic values and decisions.
+- [ ] Define conversion interfaces for Augur.
+- [ ] Define conversion interfaces for TPT inference runtimes.
+- [ ] Define interfaces for external AI/decision engines.
+- [ ] Ensure Axiom does not depend on any specific AI vendor, model, inference engine or network service.
+- [ ] Add comprehensive property-based tests for probabilistic invariants.
+- [ ] Add conformance tests for all probabilistic types.
+- [ ] Document the mathematical and semantic meaning of every public type.
