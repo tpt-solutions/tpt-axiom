@@ -1,0 +1,27 @@
+[package]
+name = "axiom-cli"
+description = "Build-time driver for tpt-axiom: proving-key/verifying-key generation and proof verification."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "axiom"
+path = "src/main.rs"
+
+[dependencies]
+axiom-zk = { workspace = true }
+axiom-ir = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+termcolor = "1.4"

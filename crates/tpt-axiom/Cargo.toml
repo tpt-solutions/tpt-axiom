@@ -1,0 +1,19 @@
+[package]
+name = "tpt-axiom"
+description = "Umbrella crate for tpt-axiom: native probabilistic logic and zero-knowledge state for Rust. Re-exports the public prelude."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+axiom-core = { workspace = true }

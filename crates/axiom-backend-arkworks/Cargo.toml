@@ -1,0 +1,20 @@
+[package]
+name = "axiom-backend-arkworks"
+description = "Arkworks backend adapter for tpt-axiom (Phase 4)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+axiom-zk = { workspace = true }
+axiom-ir = { workspace = true }

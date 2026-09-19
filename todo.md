@@ -6,36 +6,36 @@ License: dual **MIT OR Apache-2.0**. Author: **TPT Solutions**.
 
 ## Phase 0: Project Scaffolding & Licensing
 
-- [ ] Initialize git repo and `.gitignore` (`/target`, etc.)
-- [ ] Create Cargo workspace (`resolver = "2"`) with `[workspace.package]` metadata: `license = "MIT OR Apache-2.0"`, `authors = ["TPT Solutions"]`, `edition`, `repository`, `homepage`, `documentation`, `keywords`, `categories`
-- [ ] Add `LICENSE-MIT` and `LICENSE-APACHE` files (copyright holder: TPT Solutions)
-- [ ] Scaffold crate layout under `crates/`:
-  - [ ] `axiom-core` — `Fuzzy<T>` / `Distribution<T>` probabilistic types
-  - [ ] `axiom-ir` — shared arithmetic intermediate representation (variance-propagation constraints + ZK circuit constraints)
-  - [ ] `axiom-macros` — `#[zk_provable]` proc-macro crate
-  - [ ] `axiom-zk` — `ZkBackend` trait + circuit/proving-key/verifying-key abstractions
-  - [ ] `axiom-backend-halo2`, `axiom-backend-arkworks`, `axiom-backend-sp1` — backend adapter crates (implemented in Phase 4, scaffolded as empty crates now)
-  - [ ] `axiom-cli` — build-time driver (key generation, verification invocation)
-- [ ] `tpt-axiom` umbrella crate re-exporting a `prelude` module matching the spec's `use tpt_axiom::prelude::*;`
-- [ ] README.md (overview, quickstart, links to spec)
-- [ ] ARCHITECTURE.md capturing the diagram in spec.txt §3
-- [ ] CONTRIBUTING.md
-- [ ] CHANGELOG.md
-- [ ] `.github/workflows/ci.yml` (fmt, clippy, test) mirroring `tpt-telos`
-- [ ] `.github/ISSUE_TEMPLATE/` + `pull_request_template.md`
-- [ ] `examples/` directory with its own README
+- [x] Initialize git repo and `.gitignore` (`/target`, etc.)
+- [x] Create Cargo workspace (`resolver = "2"`) with `[workspace.package]` metadata: `license = "MIT OR Apache-2.0"`, `authors = ["TPT Solutions"]`, `edition`, `repository`, `homepage`, `documentation`, `keywords`, `categories`
+- [x] Add `LICENSE-MIT` and `LICENSE-APACHE` files (copyright holder: TPT Solutions)
+- [x] Scaffold crate layout under `crates/`:
+  - [x] `axiom-core` — `Fuzzy<T>` / `Distribution<T>` probabilistic types
+  - [x] `axiom-ir` — shared arithmetic intermediate representation (variance-propagation constraints + ZK circuit constraints)
+  - [x] `axiom-macros` — `#[zk_provable]` proc-macro crate
+  - [x] `axiom-zk` — `ZkBackend` trait + circuit/proving-key/verifying-key abstractions
+  - [x] `axiom-backend-halo2`, `axiom-backend-arkworks`, `axiom-backend-sp1` — backend adapter crates (implemented in Phase 4, scaffolded as empty crates now)
+  - [x] `axiom-cli` — build-time driver (key generation, verification invocation)
+- [x] `tpt-axiom` umbrella crate re-exporting a `prelude` module matching the spec's `use tpt_axiom::prelude::*;`
+- [x] README.md (overview, quickstart, links to spec)
+- [x] ARCHITECTURE.md capturing the diagram in spec.txt §3
+- [x] CONTRIBUTING.md
+- [x] CHANGELOG.md
+- [x] `.github/workflows/ci.yml` (fmt, clippy, test) — `tpt-telos` wasn't available locally to mirror, so this is a standard fmt/clippy/test workflow instead
+- [x] `.github/ISSUE_TEMPLATE/` + `pull_request_template.md`
+- [x] `examples/` directory with its own README
 
 ## Phase 1: Probabilistic & Uncertainty Types (Months 1-3)
 
-- [ ] Define `Fuzzy<T>` struct (mean + variance) for floating-point types
-- [ ] Define `Distribution<T>` as the more general uncertainty wrapper (start with Gaussian; leave room for other distributions later)
-- [ ] Implement `Fuzzy::new(mean, variance)` constructor and accessors
-- [ ] Operator overloading: `Add`, `Sub`, `Mul`, `Div` for `Fuzzy<T> + Fuzzy<T>`, `Fuzzy<T> + T`, and scalar variants, each applying the correct error-propagation formula
-- [ ] Implement common statistical helpers (confidence interval, standard deviation, z-score)
-- [ ] Unit tests validating propagated variance against known closed-form results
-- [ ] Property/Monte Carlo cross-check tests (sample many draws, compare empirical variance to analytically propagated variance within tolerance)
-- [ ] Sensor fusion / Kalman filter example in `examples/` using only standard arithmetic on `Fuzzy<T>`
-- [ ] **Milestone:** Kalman filter and Monte Carlo simulation examples compile and run using natural `+`/`*` syntax with correct propagated uncertainty.
+- [x] Define `Fuzzy<T>` struct (mean + variance) for floating-point types
+- [x] Define `Distribution<T>` as the more general uncertainty wrapper (start with Gaussian; leave room for other distributions later)
+- [x] Implement `Fuzzy::new(mean, variance)` constructor and accessors
+- [x] Operator overloading: `Add`, `Sub`, `Mul`, `Div` for `Fuzzy<T> + Fuzzy<T>`, `Fuzzy<T> + T`, and scalar variants, each applying the correct error-propagation formula
+- [x] Implement common statistical helpers (confidence interval, standard deviation, z-score)
+- [x] Unit tests validating propagated variance against known closed-form results
+- [x] Property/Monte Carlo cross-check tests (sample many draws, compare empirical variance to analytically propagated variance within tolerance)
+- [x] Sensor fusion / Kalman filter example in `examples/` using only standard arithmetic on `Fuzzy<T>`
+- [x] **Milestone:** Kalman filter and Monte Carlo simulation examples compile and run using natural `+`/`*` syntax with correct propagated uncertainty. (Monte Carlo cross-checks live as tests in `axiom-core`; a standalone `examples/monte_carlo.rs`-style walkthrough is still open for Phase 5's "expand examples" pass.)
 
 ## Phase 2: ZK Arithmetic IR & `#[zk_provable]` Macro (Months 4-6)
 
