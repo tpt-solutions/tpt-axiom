@@ -1,5 +1,5 @@
 [package]
-name = "axiom-backend-halo2"
+name = "tpt-axiom-backend-halo2"
 description = "Halo2 backend adapter for tpt-axiom (Phase 4). Produces real halo2 proofs from #[zk_provable] circuits."
 version.workspace = true
 edition.workspace = true
@@ -16,5 +16,5 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
-axiom-zk = { workspace = true }
-axiom-ir = { workspace = true }
+tpt-axiom-zk = { workspace = true }
+tpt-axiom-ir = { workspace = true }

@@ -8,7 +8,7 @@
 #![warn(missing_docs)]
 #![forbid(unsafe_code)]
 
-use axiom_ir::ConstraintGraph;
+use tpt_axiom_ir::ConstraintGraph;
 
 /// A zero-knowledge proving backend (e.g. halo2, arkworks, sp1).
 ///

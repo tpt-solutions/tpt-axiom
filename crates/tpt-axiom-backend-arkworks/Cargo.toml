@@ -1,6 +1,6 @@
 [package]
-name = "axiom-ir"
-description = "Shared backend-agnostic arithmetic IR (constraint graphs lowering to R1CS / PLONKish) for tpt-axiom."
+name = "tpt-axiom-backend-arkworks"
+description = "Arkworks backend adapter for tpt-axiom (Phase 4)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -16,3 +16,5 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
+tpt-axiom-zk = { workspace = true }
+tpt-axiom-ir = { workspace = true }

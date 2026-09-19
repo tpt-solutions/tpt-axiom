@@ -1,6 +1,6 @@
 [package]
-name = "axiom-macros"
-description = "Procedural macros for tpt-axiom, including the #[zk_provable] circuit-lowering macro."
+name = "tpt-axiom-backend-sp1"
+description = "SP1 (Succinct) backend adapter for tpt-axiom (Phase 4)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -15,11 +15,6 @@ categories.workspace = true
 [lints]
 workspace = true
 
-[lib]
-proc-macro = true
-
 [dependencies]
-proc-macro2 = "1"
-quote = "1"
-syn = { version = "2", features = ["full", "visit", "visit-mut", "printing"] }
-axiom-ir = { workspace = true }
+tpt-axiom-zk = { workspace = true }
+tpt-axiom-ir = { workspace = true }

@@ -35,7 +35,7 @@ cargo test --workspace
 - Reference the relevant `todo.md` phase/item in your PR description.
 - Add or update tests for any behavioral change. New probabilistic operations
   should include both closed-form unit tests and, where feasible, a Monte
-  Carlo cross-check (see `axiom-core`'s test suite for examples).
+  Carlo cross-check (see `tpt-axiom-core`'s test suite for examples).
 - Update `CHANGELOG.md` under `[Unreleased]`.
 
 ## Code of conduct

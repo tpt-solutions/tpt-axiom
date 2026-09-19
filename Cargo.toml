@@ -3,25 +3,25 @@
 # Dual-licensed MIT OR Apache-2.0.  Copyright TPT Solutions.
 #
 # Workspace layout:
-#   crates/axiom-core         — Fuzzy<T> / Distribution<T> probabilistic types
-#   crates/axiom-ir           — shared arithmetic intermediate representation
-#   crates/axiom-macros       — #[zk_provable] proc-macro
-#   crates/axiom-zk           — ZkBackend trait + circuit/proving-key/verifying-key abstractions
-#   crates/axiom-backend-*    — backend adapters (Phase 4)
-#   crates/axiom-cli          — build-time driver (keygen / verify)
-#   crates/tpt-axiom          — umbrella crate re-exporting the public prelude
+#   crates/tpt-axiom-core         — Fuzzy<T> / Distribution<T> probabilistic types
+#   crates/tpt-axiom-ir           — shared arithmetic intermediate representation
+#   crates/tpt-axiom-macros       — #[zk_provable] proc-macro
+#   crates/tpt-axiom-zk           — ZkBackend trait + circuit/proving-key/verifying-key abstractions
+#   crates/tpt-axiom-backend-*    — backend adapters (Phase 4)
+#   crates/tpt-axiom-cli          — build-time driver (keygen / verify)
+#   crates/tpt-axiom              — umbrella crate re-exporting the public prelude
 
 [workspace]
 resolver = "2"
 members = [
-    "crates/axiom-core",
-    "crates/axiom-ir",
-    "crates/axiom-macros",
-    "crates/axiom-zk",
-    "crates/axiom-backend-halo2",
-    "crates/axiom-backend-arkworks",
-    "crates/axiom-backend-sp1",
-    "crates/axiom-cli",
+    "crates/tpt-axiom-core",
+    "crates/tpt-axiom-ir",
+    "crates/tpt-axiom-macros",
+    "crates/tpt-axiom-zk",
+    "crates/tpt-axiom-backend-halo2",
+    "crates/tpt-axiom-backend-arkworks",
+    "crates/tpt-axiom-backend-sp1",
+    "crates/tpt-axiom-cli",
     "crates/tpt-axiom",
 ]
 
@@ -47,13 +47,13 @@ pedantic = "warn"
 nursery = "warn"
 
 [workspace.dependencies]
-axiom-core = { version = "0.1.0", path = "crates/axiom-core" }
-axiom-ir = { version = "0.1.0", path = "crates/axiom-ir" }
-axiom-macros = { version = "0.1.0", path = "crates/axiom-macros" }
-axiom-zk = { version = "0.1.0", path = "crates/axiom-zk" }
-axiom-backend-halo2 = { version = "0.1.0", path = "crates/axiom-backend-halo2" }
-axiom-backend-arkworks = { version = "0.1.0", path = "crates/axiom-backend-arkworks" }
-axiom-backend-sp1 = { version = "0.1.0", path = "crates/axiom-backend-sp1" }
+tpt-axiom-core = { version = "0.1.0", path = "crates/tpt-axiom-core" }
+tpt-axiom-ir = { version = "0.1.0", path = "crates/tpt-axiom-ir" }
+tpt-axiom-macros = { version = "0.1.0", path = "crates/tpt-axiom-macros" }
+tpt-axiom-zk = { version = "0.1.0", path = "crates/tpt-axiom-zk" }
+tpt-axiom-backend-halo2 = { version = "0.1.0", path = "crates/tpt-axiom-backend-halo2" }
+tpt-axiom-backend-arkworks = { version = "0.1.0", path = "crates/tpt-axiom-backend-arkworks" }
+tpt-axiom-backend-sp1 = { version = "0.1.0", path = "crates/tpt-axiom-backend-sp1" }
 
 
 [profile.release]

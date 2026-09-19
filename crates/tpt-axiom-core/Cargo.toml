@@ -1,5 +1,5 @@
 [package]
-name = "axiom-core"
+name = "tpt-axiom-core"
 description = "Probabilistic logic and uncertainty state for tpt-axiom: Fuzzy<T> and Distribution<T> with automatic error propagation."
 version.workspace = true
 edition.workspace = true

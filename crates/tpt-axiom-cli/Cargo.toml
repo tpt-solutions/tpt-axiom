@@ -1,5 +1,5 @@
 [package]
-name = "axiom-cli"
+name = "tpt-axiom-cli"
 description = "Build-time driver for tpt-axiom: proving-key/verifying-key generation and proof verification."
 version.workspace = true
 edition.workspace = true
@@ -20,8 +20,8 @@ name = "axiom"
 path = "src/main.rs"
 
 [dependencies]
-axiom-zk = { workspace = true }
-axiom-ir = { workspace = true }
+tpt-axiom-zk = { workspace = true }
+tpt-axiom-ir = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 anyhow = "1"
 termcolor = "1.4"

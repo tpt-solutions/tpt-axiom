@@ -23,7 +23,7 @@
 /// The `tpt-axiom` prelude. `use tpt_axiom::prelude::*;` brings the
 /// probabilistic types into scope.
 pub mod prelude {
-    pub use axiom_core::{Distribution, Fuzzy};
+    pub use tpt_axiom_core::{Distribution, Fuzzy};
 }
 
-pub use axiom_core::{Distribution, Fuzzy};
+pub use tpt_axiom_core::{Distribution, Fuzzy};
