@@ -474,9 +474,10 @@ mod tests {
         let z = 1.959_963_984_540_054;
         assert!((lo - (10.0 - z * 2.0)).abs() < 1e-6);
         assert!((hi - (10.0 + z * 2.0)).abs() < 1e-6);
-        let (lo, hi) = x.confidence_interval(0.68);
-        assert!((lo - 8.0).abs() < 1e-3);
-        assert!((hi - 12.0).abs() < 1e-3);
+        // 0.682_689_492_137_086 is the exact two-sided coverage of +/-1 sigma.
+        let (lo, hi) = x.confidence_interval(0.682_689_492_137_086);
+        assert!((lo - 8.0).abs() < 1e-6);
+        assert!((hi - 12.0).abs() < 1e-6);
     }
 
     #[test]

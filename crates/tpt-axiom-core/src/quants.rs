@@ -7,7 +7,6 @@
 //! by the approximations below (relative error ~1e-7 or better).
 
 const SQRT_2: f64 = 1.414_213_562_373_095_1;
-const INV_SQRT_2_PI: f64 = 0.398_942_280_401_432_7;
 
 /// Error function `erf(x)`, computed with the Abramowitz & Stegun 7.1.26
 /// rational approximation (absolute error ~1.5e-7).
@@ -44,14 +43,12 @@ pub fn norm_cdf(z: f64) -> f64 {
     }
 }
 
-/// Standard-normal probability density function `phi(z)`.
-pub fn norm_pdf(z: f64) -> f64 {
-    INV_SQRT_2_PI * (-0.5 * z * z).exp()
-}
-
 /// Standard-normal quantile function (inverse CDF) `z_p`, approximated with
-/// the Acklam / Beasley-Springer-Moro algorithm and refined by a few Newton
-/// iterations against [`norm_cdf`].
+/// the Acklam / Beasley-Springer-Moro rational approximation (relative error
+/// ~1.15e-9, tighter than [`norm_cdf`]'s ~1.5e-7 absolute error, so it is
+/// intentionally *not* refined by Newton iterations against `norm_cdf`: doing
+/// so would anchor the result to the less accurate function instead of
+/// improving it).
 ///
 /// # Panics
 ///
@@ -99,30 +96,19 @@ pub fn norm_ppf(p: f64) -> f64 {
         0.148_103_976_427_480_1,
         0.015_198_666_563_616_4,
         0.000_547_593_808_499_534_6,
-        0.000_001_050_750_071_644_417,
+        0.000_000_001_050_750_071_644_417,
     ];
 
     let q = p - 0.5;
-    let x = if q.abs() <= 0.425 {
+    if q.abs() <= 0.425 {
         let r = 0.180_625 - q * q;
         q * horner(&A, r) / horner(&B, r)
     } else {
         let r = if q < 0.0 { p } else { 1.0 - p };
-        let r = (-r.ln()).sqrt();
+        let r = (-r.ln()).sqrt() - 1.6;
         let x = horner(&C, r) / horner(&D, r);
         if q < 0.0 { -x } else { x }
-    };
-
-    // Newton refinement against the CDF. Two iterations reach ~1e-15 accuracy.
-    let mut x = x;
-    for _ in 0..3 {
-        let d = norm_cdf(x) - p;
-        if d == 0.0 {
-            break;
-        }
-        x -= d / norm_pdf(x);
     }
-    x
 }
 
 fn horner(coeffs: &[f64; 8], x: f64) -> f64 {
@@ -158,10 +144,11 @@ mod tests {
         assert!((norm_ppf(0.975) - 1.959_963_984_540_054).abs() < 1e-6);
         assert!((norm_ppf(0.025) + 1.959_963_984_540_054).abs() < 1e-6);
         assert!((norm_ppf(0.5) - 0.0).abs() < 1e-12);
-        // Round-trip.
+        // Round-trip, bounded by norm_cdf's own ~1.5e-7 absolute error (it
+        // goes through the erf approximation), not norm_ppf's ~1.15e-9.
         for p in [0.05, 0.10, 0.5, 0.9, 0.95, 0.99] {
             let z = norm_ppf(p);
-            assert!((norm_cdf(z) - p).abs() < 1e-9, "round trip failed for {p}");
+            assert!((norm_cdf(z) - p).abs() < 1e-6, "round trip failed for {p}");
         }
     }
 

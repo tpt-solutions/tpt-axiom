@@ -27,4 +27,6 @@ proc-macro-crate = "3"
 [dev-dependencies]
 tpt-axiom-ir = { workspace = true }
 tpt-axiom-zk = { workspace = true }
+tpt-axiom-verify = { workspace = true }
 trybuild = "1"
+proptest = "1"

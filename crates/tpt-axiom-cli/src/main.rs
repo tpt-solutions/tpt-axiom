@@ -3,8 +3,9 @@
 //! The `tpt-axiom` build-time driver.
 //!
 //! Later phases use this binary to generate proving/verifying keys for
-//! `#[zk_provable]` circuits, invoke verification (including the Phase 3
-//! `tpt-telos` circuit-equivalence check), and drive the Phase 4 backends.
+//! `#[zk_provable]` circuits, invoke verification (the Phase 3
+//! `tpt-axiom-verify` circuit/variance-formula checks), and drive the
+//! Phase 4 backends.
 //!
 //! **Status: Phase 0 scaffolding.** The command surface exists so scripts and
 //! CI can call `axiom <command>` today; the commands themselves are stubs that
@@ -26,7 +27,15 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Some("keys") => not_implemented("keys", "Phase 4 (backend adapters)"),
-        Some("verify") => not_implemented("verify", "Phase 3/4 (tpt-telos + backends)"),
+        Some("verify") => {
+            eprintln!(
+                "tpt-axiom-cli: `verify` has no build-time gate yet (needs a #[zk_provable] \
+                 discovery mechanism, arriving alongside Phase 4's backend key generation).\n\
+                 Today's answer: `cargo test -p tpt-axiom-verify` runs the circuit- and \
+                 variance-formula-mismatch checks directly."
+            );
+            ExitCode::from(2)
+        }
         Some(other) => {
             eprintln!("tpt-axiom-cli: unknown command `{other}`");
             print_help();

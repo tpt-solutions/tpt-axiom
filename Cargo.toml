@@ -7,6 +7,7 @@
 #   crates/tpt-axiom-ir           — shared arithmetic intermediate representation
 #   crates/tpt-axiom-macros       — #[zk_provable] proc-macro
 #   crates/tpt-axiom-zk           — ZkBackend trait + circuit/proving-key/verifying-key abstractions
+#   crates/tpt-axiom-verify       — polynomial-identity circuit/variance-formula verification (Phase 3)
 #   crates/tpt-axiom-backend-*    — backend adapters (Phase 4)
 #   crates/tpt-axiom-cli          — build-time driver (keygen / verify)
 #   crates/tpt-axiom              — umbrella crate re-exporting the public prelude
@@ -18,6 +19,7 @@ members = [
     "crates/tpt-axiom-ir",
     "crates/tpt-axiom-macros",
     "crates/tpt-axiom-zk",
+    "crates/tpt-axiom-verify",
     "crates/tpt-axiom-backend-halo2",
     "crates/tpt-axiom-backend-arkworks",
     "crates/tpt-axiom-backend-sp1",
@@ -51,6 +53,7 @@ tpt-axiom-core = { version = "0.1.0", path = "crates/tpt-axiom-core" }
 tpt-axiom-ir = { version = "0.1.0", path = "crates/tpt-axiom-ir" }
 tpt-axiom-macros = { version = "0.1.0", path = "crates/tpt-axiom-macros" }
 tpt-axiom-zk = { version = "0.1.0", path = "crates/tpt-axiom-zk" }
+tpt-axiom-verify = { version = "0.1.0", path = "crates/tpt-axiom-verify" }
 tpt-axiom-backend-halo2 = { version = "0.1.0", path = "crates/tpt-axiom-backend-halo2" }
 tpt-axiom-backend-arkworks = { version = "0.1.0", path = "crates/tpt-axiom-backend-arkworks" }
 tpt-axiom-backend-sp1 = { version = "0.1.0", path = "crates/tpt-axiom-backend-sp1" }

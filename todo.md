@@ -39,27 +39,27 @@ License: dual **MIT OR Apache-2.0**. Author: **TPT Solutions**.
 
 ## Phase 2: ZK Arithmetic IR & `#[zk_provable]` Macro (Months 4-6)
 
-- [ ] Design backend-agnostic arithmetic IR (gate/constraint representation capable of lowering to R1CS and PLONKish forms)
-- [ ] Define `ZkBackend` trait in `tpt-axiom-zk`: circuit representation, witness generation, proving-key generation, verifying-key generation, prove/verify calls
-- [ ] Implement `#[zk_provable(backend = "...")]` proc-macro in `tpt-axiom-macros`:
-  - [ ] Parse the annotated function's Rust AST (`syn`/`quote`)
-  - [ ] Distinguish `pub` (public input), plain (public output/local), and `secret` (witness) parameters
-  - [ ] Translate `assert!`/`assert_eq!` constraints in the function body into IR constraints
-  - [ ] Emit a clear compiler error for unsupported Rust constructs (loops with dynamic bounds, heap allocation, trait objects, etc.)
-  - [ ] Generate a circuit-definition type implementing a common `Circuit` trait consumed by any `ZkBackend`
-- [ ] Wire the macro's `backend = "halo2"` attribute argument to select the target `ZkBackend` impl at compile time
-- [ ] Unit tests: macro expansion snapshot tests + IR-correctness tests for simple arithmetic/comparison functions
-- [ ] **Milestone:** `#[zk_provable]`-annotated `prove_balance_transfer` (from spec.txt §4) compiles and lowers to IR against the backend-agnostic trait, with no real proving backend wired in yet.
+- [x] Design backend-agnostic arithmetic IR (gate/constraint representation capable of lowering to R1CS and PLONKish forms) — `tpt-axiom-ir`'s `ConstraintSystem` expression DAG (`circuit.rs`) plus the `R1CS` lowering (`r1cs.rs`); a PLONKish gate lowering is left for the Phase 4 backend adapters, which is where a concrete PLONKish target (halo2) actually needs it
+- [x] Define `ZkBackend` trait in `tpt-axiom-zk`: circuit representation, witness generation, proving-key generation, verifying-key generation, prove/verify calls
+- [x] Implement `#[zk_provable(backend = "...")]` proc-macro in `tpt-axiom-macros`:
+  - [x] Parse the annotated function's Rust AST (`syn`/`quote`)
+  - [x] Distinguish `pub` (public input), plain (public output/local), and `secret` (witness) parameters
+  - [x] Translate `assert!`/`assert_eq!` constraints in the function body into IR constraints
+  - [x] Emit a clear compiler error for unsupported Rust constructs (loops with dynamic bounds, heap allocation, trait objects, etc.) — see `tests/ui/*.rs`
+  - [x] Generate a circuit-definition type implementing a common `Circuit` trait consumed by any `ZkBackend`
+- [x] Wire the macro's `backend = "halo2"` attribute argument to select the target `ZkBackend` impl at compile time
+- [x] Unit tests: macro expansion snapshot tests + IR-correctness tests for simple arithmetic/comparison functions — `tests/circuits.rs` (IR correctness) and `tests/ui.rs` (trybuild compiler-error snapshots)
+- [x] **Milestone:** `#[zk_provable]`-annotated `prove_balance_transfer` (from spec.txt §4) compiles and lowers to IR against the backend-agnostic trait, with no real proving backend wired in yet. (verified by `balance_transfer_lowers_to_ir` in `tests/circuits.rs`)
 
-## Phase 3: `tpt-telos` Formal Verification Integration (Months 7-9)
+## Phase 3: Formal Verification of Circuits & Variance Formulas (Months 7-9)
 
-- [ ] Add `tpt-telos` (`C:\Programming\2 WIP\tpt-telos`) as a workspace dependency (path dependency initially; revisit as a versioned/git dependency once tpt-axiom is ready to publish)
-- [ ] Bridge `Fuzzy<T>`/`Distribution<T>` operator-overload rules into `tpt-telos`'s constraint format so variance-propagation arithmetic can be checked for soundness
-- [ ] Bridge `tpt-axiom-ir` circuit constraints into `tpt-telos`'s verification format so the generated ZK circuit can be checked for equivalence against the original Rust function's asserted constraints
-- [ ] Implement the "circuit mismatch" detector: a build-time (or `tpt-axiom-cli`) step that fails compilation when Rust logic and generated circuit diverge
-- [ ] Integration tests: a deliberately-broken `#[zk_provable]` function (e.g. an off-by-one in the circuit lowering) is caught by verification and fails the build with a useful diagnostic
-- [ ] Integration tests: a deliberately-wrong variance-propagation formula is caught by verification
-- [ ] **Milestone:** An intentionally introduced circuit-mismatch bug is caught by `tpt-telos` verification before it reaches compiled output.
+- [x] ~~Add `tpt-telos` as a workspace dependency~~ — investigated and **superseded**. `tpt-telos`'s only reusable piece is `tpt-telos-verifier`, a QF_LRA (linear-arithmetic-only) solver; `tpt-axiom-ir` allows genuine bilinear terms (e.g. `a * k` for two witnesses) and `Fuzzy<T>`'s `*`/`/` variance formulas are nonlinear, both outside a linear solver's reach. Built `crates/tpt-axiom-verify` instead: a self-contained canonical-polynomial-normal-form checker, which handles the nonlinear cases a QF_LRA solver couldn't and has no external dependency. See that crate's README for the full rationale.
+- [x] Bridge `Fuzzy<T>`/`Distribution<T>` operator-overload rules into a checkable form so variance-propagation arithmetic can be checked for soundness — `tpt-axiom-verify::fuzzy` covers `+`, `-`, `*`, `/`, and scalar scaling (more complete than a QF_LRA bridge could have reached, which would have been limited to `+`/`-`)
+- [x] Bridge `tpt-axiom-ir` circuit constraints into a checkable form so the generated ZK circuit can be checked for equivalence against the original Rust function's asserted constraints — `tpt-axiom-verify::circuit::check_comparison` (exact polynomial identity) plus `evaluate` for concrete cross-checks against the kept-original Rust function (`tpt-axiom-macros/tests/circuits.rs`'s `*_ir_matches_rust` proptests)
+- [x] Implement the "circuit mismatch" detector — as a library check + tests (`tpt-axiom-verify::circuit::check_comparison`), not a build-time gate: auto-discovering every `#[zk_provable]` function in a downstream crate needs a registry mechanism that doesn't exist yet; deferred to Phase 4, which needs similar discovery for key generation anyway. `tpt-axiom-cli verify` points at `cargo test -p tpt-axiom-verify` as today's answer.
+- [x] Integration tests: a deliberately-broken `#[zk_provable]`-style circuit (an off-by-one, and swapped operands) is caught by verification with a useful diagnostic — `crates/tpt-axiom-verify/tests/circuit_mismatch.rs`
+- [x] Integration tests: a deliberately-wrong variance-propagation formula is caught by verification — `crates/tpt-axiom-verify/tests/variance_mismatch.rs`
+- [x] **Milestone (adjusted):** An intentionally introduced circuit-mismatch bug is caught by `cargo test -p tpt-axiom-verify` (not "the build" — no build-time gate exists yet, see above).
 
 ## Phase 4: ZK Backend Adapters (Months 10-12+)
 
