@@ -1,0 +1,41 @@
+# tpt-axiom — workspace root
+#
+# Probabilistic Logic and Native Zero-Knowledge State for Rust.
+# See spec.txt for the design.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/axiom-core",
+    "crates/axiom-ir",
+    "crates/axiom-macros",
+    "crates/axiom-zk",
+    "crates/axiom-backend-halo2",
+    "crates/axiom-backend-arkworks",
+    "crates/axiom-backend-sp1",
+    "crates/axiom-cli",
+    "crates/tpt-axiom",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+license = "MIT OR Apache-2.0"
+authors = ["TPT Solutions"]
+repository = "https://github.com/tpt-solutions/tpt-axiom"
+homepage = "https://github.com/tpt-solutions/tpt-axiom"
+documentation = "https://docs.rs/tpt-axiom"
+keywords = ["probability", "zero-knowledge", "zkp", "arithmetic", "error-propagation"]
+categories = ["mathematics", "cryptography", "no-std"]
+
+[workspace.dependencies]
+axiom-core = { path = "crates/axiom-core", version = "0.1.0" }
+axiom-ir = { path = "crates/axiom-ir", version = "0.1.0" }
+axiom-zk = { path = "crates/axiom-zk", version = "0.1.0" }
+axiom-macros = { path = "crates/axiom-macros", version = "0.1.0" }
+
+num-traits = "0.2"
+syn = { version = "2", features = ["full", "extra-traits", "visit"] }
+quote = "1"
+proc-macro2 = "1"
