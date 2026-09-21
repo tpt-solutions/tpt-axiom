@@ -1,6 +1,6 @@
 [package]
 name = "axiom-backend-arkworks"
-description = "arkworks ZkBackend adapter for tpt-axiom (Phase 4)"
+description = "Arkworks backend adapter for tpt-axiom (Phase 4)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,6 +12,9 @@ documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
-axiom-ir = { workspace = true }
 axiom-zk = { workspace = true }
+axiom-ir = { workspace = true }

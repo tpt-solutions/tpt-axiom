@@ -1,6 +1,6 @@
 [package]
 name = "axiom-macros"
-description = "Procedural macros (#[zk_provable]) for tpt-axiom"
+description = "Procedural macros for tpt-axiom, including the #[zk_provable] circuit-lowering macro."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +11,9 @@ homepage.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
+
+[lints]
+workspace = true
 
 [lib]
 proc-macro = true

@@ -1,3 +1,68 @@
+# tpt-axiom — Probabilistic Logic and Native Zero-Knowledge State for Rust.
+#
+# Dual-licensed MIT OR Apache-2.0.  Copyright TPT Solutions.
+#
+# Workspace layout:
+#   crates/axiom-core         — Fuzzy<T> / Distribution<T> probabilistic types
+#   crates/axiom-ir           — shared arithmetic intermediate representation
+#   crates/axiom-macros       — #[zk_provable] proc-macro
+#   crates/axiom-zk           — ZkBackend trait + circuit/proving-key/verifying-key abstractions
+#   crates/axiom-backend-*    — backend adapters (Phase 4)
+#   crates/axiom-cli          — build-time driver (keygen / verify)
+#   crates/tpt-axiom          — umbrella crate re-exporting the public prelude
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/axiom-core",
+    "crates/axiom-ir",
+    "crates/axiom-macros",
+    "crates/axiom-zk",
+    "crates/axiom-backend-halo2",
+    "crates/axiom-backend-arkworks",
+    "crates/axiom-backend-sp1",
+    "crates/axiom-cli",
+    "crates/tpt-axiom",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+authors = ["TPT Solutions"]
+repository = "https://github.com/tpt-solutions/tpt-axiom"
+homepage = "https://github.com/tpt-solutions/tpt-axiom"
+documentation = "https://docs.rs/tpt-axiom"
+keywords = ["probability", "statistics", "zero-knowledge", "zk", "rust"]
+categories = ["mathematics", "cryptography", "science", "compiler-plugins"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+
+[workspace.dependencies]
+axiom-core = { version = "0.1.0", path = "crates/axiom-core" }
+axiom-ir = { version = "0.1.0", path = "crates/axiom-ir" }
+axiom-macros = { version = "0.1.0", path = "crates/axiom-macros" }
+axiom-zk = { version = "0.1.0", path = "crates/axiom-zk" }
+axiom-backend-halo2 = { version = "0.1.0", path = "crates/axiom-backend-halo2" }
+axiom-backend-arkworks = { version = "0.1.0", path = "crates/axiom-backend-arkworks" }
+axiom-backend-sp1 = { version = "0.1.0", path = "crates/axiom-backend-sp1" }
+
+
+[profile.release]
+lto = "thin"
+
+[profile.bench]
+lto = "thin"
+debug = true
+
 # tpt-axiom — workspace root
 #
 # Probabilistic Logic and Native Zero-Knowledge State for Rust.

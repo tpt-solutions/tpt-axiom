@@ -1,97 +1,45 @@
-//! The [`Distribution<T>`] general uncertainty type.
+//! [`Distribution<T>`]: a general probabilistic value.
 //!
-//! [`Fuzzy<T>`] models the important special case of a Gaussian
-//! (mean + variance). [`Distribution<T>`] wraps a full probability
-//! distribution so that non-Gaussian shapes can be added later without
-//! changing the public API; today it starts with `Constant` and `Gaussian`.
+//! `Distribution<T>` is the more general uncertainty wrapper referenced in
+//! `todo.md` Phase 1: it starts with the Gaussian case (mean + variance, the
+//! same representation as [`crate::Fuzzy`]) and leaves room to grow other
+//! variants (e.g. `Uniform`, `Categorical`) without breaking callers who
+//! match on it exhaustively via the accessor methods below rather than the
+//! enum shape directly.
 
-use core::fmt;
-use core::ops::{Add, Div, Mul, Sub};
+use crate::{Fuzzy, traits::FuzzyScalar};
 
-use num_traits::{Float, FromPrimitive, ToPrimitive};
-
-use crate::Fuzzy;
-
-/// A probability distribution over type `T`.
-///
-/// Arithmetic on two distributions performs the appropriate closed-form
-/// propagation where one exists (a Gaussian stays Gaussian under addition,
-/// subtraction, multiplication and division, and a constant stays constant),
-/// mirroring [`Fuzzy<T>`]'s rules.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// A general probabilistic value. Currently only the Gaussian case is
+/// implemented; other distribution families are future work (see
+/// `todo.md`'s "AI & Probabilistic Intelligence Foundation" section).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Distribution<T> {
-    /// A deterministic value (a delta distribution).
-    Constant(T),
-    /// A normal (Gaussian) distribution.
+    /// A Gaussian (normal) distribution with the given mean and variance.
     Gaussian {
-        /// The expected value of the distribution.
+        /// Mean of the distribution.
         mean: T,
-        /// The spread (second central moment) of the distribution.
+        /// Variance of the distribution.
         variance: T,
     },
 }
 
-impl<T: Float> Distribution<T> {
-    /// The distribution's expected value, if it is defined.
-    pub fn mean(&self) -> T {
-        match *self {
-            Distribution::Constant(v) => v,
-            Distribution::Gaussian { mean, .. } => mean,
+impl<T: FuzzyScalar> Distribution<T> {
+    /// Construct a Gaussian distribution from a mean and a variance.
+    pub const fn gaussian(mean: T, variance: T) -> Self {
+        Self::Gaussian { mean, variance }
+    }
+
+    /// The distribution's mean.
+    pub const fn mean(&self) -> T {
+        match self {
+            Self::Gaussian { mean, .. } => *mean,
         }
     }
 
-    /// The distribution's variance, if it is defined. A constant has zero.
-    pub fn variance(&self) -> T {
-        match *self {
-            Distribution::Constant(_) => T::zero(),
-            Distribution::Gaussian { variance, .. } => variance,
-        }
-    }
-
-    /// The standard deviation.
-    pub fn standard_deviation(&self) -> T {
-        self.variance().sqrt()
-    }
-
-    /// The confidence interval `(lo, hi)` containing roughly `confidence` of
-    /// the mass. For a Gaussian this is the familiar ±zσ band; for a constant
-    /// it is the point itself (requiring `confidence` in `(0, 1)`).
-    pub fn confidence_interval(&self, confidence: T) -> (T, T)
-    where
-        T: FromPrimitive,
-    {
-        match *self {
-            Distribution::Constant(v) => (v, v),
-            Distribution::Gaussian { mean, variance } => {
-                Fuzzy::new(mean, variance).confidence_interval(confidence)
-            }
-        }
-    }
-
-    /// Draws one sample from the distribution. `rng` must produce uniform
-    /// doubles in `(0, 1)`. A Gaussian is sampled with the Box–Muller method.
-    pub fn sample<R>(&self, mut rng: R) -> T
-    where
-        R: FnMut() -> f64,
-        T: FromPrimitive,
-    {
-        match *self {
-            Distribution::Constant(v) => v,
-            Distribution::Gaussian { mean, variance } => {
-                let u1 = rng().max(f64::EPSILON);
-                // Box–Muller; the two uniforms produce two independent draws,
-                // we keep one (the standard approach), u2 on (0,1].
-                let u2 = rng().max(f64::EPSILON).min(1.0);
-                let z = (-2.0 * u1.ln()).sqrt() * (core::f64::consts::TAU * u2).cos();
-                mean + T::from_f64(z.to_f64().unwrap()).unwrap() * variance.sqrt()
-            }
-        }
-    }
-
-    fn into_fuzzy(&self) -> Fuzzy<T> {
-        match *self {
-            Distribution::Constant(v) => Fuzzy::constant(v),
-            Distribution::Gaussian { mean, variance } => Fuzzy::new(mean, variance),
+    /// The distribution's variance.
+    pub const fn variance(&self) -> T {
+        match self {
+            Self::Gaussian { variance, .. } => *variance,
         }
     }
 }
