@@ -3,25 +3,25 @@
 # Dual-licensed MIT OR Apache-2.0.  Copyright TPT Solutions.
 #
 # Workspace layout:
-#   crates/axiom-core         — Fuzzy<T> / Distribution<T> probabilistic types
-#   crates/axiom-ir           — shared arithmetic intermediate representation
-#   crates/axiom-macros       — #[zk_provable] proc-macro
-#   crates/axiom-zk           — ZkBackend trait + circuit/proving-key/verifying-key abstractions
-#   crates/axiom-backend-*    — backend adapters (Phase 4)
-#   crates/axiom-cli          — build-time driver (keygen / verify)
-#   crates/tpt-axiom          — umbrella crate re-exporting the public prelude
+#   crates/tpt-axiom-core         — Fuzzy<T> / Distribution<T> probabilistic types
+#   crates/tpt-axiom-ir           — shared arithmetic intermediate representation
+#   crates/tpt-axiom-macros       — #[zk_provable] proc-macro
+#   crates/tpt-axiom-zk           — ZkBackend trait + circuit/proving-key/verifying-key abstractions
+#   crates/tpt-axiom-backend-*    — backend adapters (Phase 4)
+#   crates/tpt-axiom-cli          — build-time driver (keygen / verify)
+#   crates/tpt-axiom              — umbrella crate re-exporting the public prelude
 
 [workspace]
 resolver = "2"
 members = [
-    "crates/axiom-core",
-    "crates/axiom-ir",
-    "crates/axiom-macros",
-    "crates/axiom-zk",
-    "crates/axiom-backend-halo2",
-    "crates/axiom-backend-arkworks",
-    "crates/axiom-backend-sp1",
-    "crates/axiom-cli",
+    "crates/tpt-axiom-core",
+    "crates/tpt-axiom-ir",
+    "crates/tpt-axiom-macros",
+    "crates/tpt-axiom-zk",
+    "crates/tpt-axiom-backend-halo2",
+    "crates/tpt-axiom-backend-arkworks",
+    "crates/tpt-axiom-backend-sp1",
+    "crates/tpt-axiom-cli",
     "crates/tpt-axiom",
 ]
 
@@ -47,14 +47,18 @@ pedantic = "warn"
 nursery = "warn"
 
 [workspace.dependencies]
-axiom-core = { version = "0.1.0", path = "crates/axiom-core" }
-axiom-ir = { version = "0.1.0", path = "crates/axiom-ir" }
-axiom-macros = { version = "0.1.0", path = "crates/axiom-macros" }
-axiom-zk = { version = "0.1.0", path = "crates/axiom-zk" }
-axiom-backend-halo2 = { version = "0.1.0", path = "crates/axiom-backend-halo2" }
-axiom-backend-arkworks = { version = "0.1.0", path = "crates/axiom-backend-arkworks" }
-axiom-backend-sp1 = { version = "0.1.0", path = "crates/axiom-backend-sp1" }
+tpt-axiom-core = { version = "0.1.0", path = "crates/tpt-axiom-core" }
+tpt-axiom-ir = { version = "0.1.0", path = "crates/tpt-axiom-ir" }
+tpt-axiom-macros = { version = "0.1.0", path = "crates/tpt-axiom-macros" }
+tpt-axiom-zk = { version = "0.1.0", path = "crates/tpt-axiom-zk" }
+tpt-axiom-backend-halo2 = { version = "0.1.0", path = "crates/tpt-axiom-backend-halo2" }
+tpt-axiom-backend-arkworks = { version = "0.1.0", path = "crates/tpt-axiom-backend-arkworks" }
+tpt-axiom-backend-sp1 = { version = "0.1.0", path = "crates/tpt-axiom-backend-sp1" }
 
+num-traits = "0.2"
+syn = { version = "2", features = ["full", "extra-traits", "visit"] }
+quote = "1"
+proc-macro2 = "1"
 
 [profile.release]
 lto = "thin"
@@ -62,45 +66,3 @@ lto = "thin"
 [profile.bench]
 lto = "thin"
 debug = true
-
-# tpt-axiom — workspace root
-#
-# Probabilistic Logic and Native Zero-Knowledge State for Rust.
-# See spec.txt for the design.
-
-[workspace]
-resolver = "2"
-members = [
-    "crates/axiom-core",
-    "crates/axiom-ir",
-    "crates/axiom-macros",
-    "crates/axiom-zk",
-    "crates/axiom-backend-halo2",
-    "crates/axiom-backend-arkworks",
-    "crates/axiom-backend-sp1",
-    "crates/axiom-cli",
-    "crates/tpt-axiom",
-]
-
-[workspace.package]
-version = "0.1.0"
-edition = "2021"
-rust-version = "1.74"
-license = "MIT OR Apache-2.0"
-authors = ["TPT Solutions"]
-repository = "https://github.com/tpt-solutions/tpt-axiom"
-homepage = "https://github.com/tpt-solutions/tpt-axiom"
-documentation = "https://docs.rs/tpt-axiom"
-keywords = ["probability", "zero-knowledge", "zkp", "arithmetic", "error-propagation"]
-categories = ["mathematics", "cryptography", "no-std"]
-
-[workspace.dependencies]
-axiom-core = { path = "crates/axiom-core", version = "0.1.0" }
-axiom-ir = { path = "crates/axiom-ir", version = "0.1.0" }
-axiom-zk = { path = "crates/axiom-zk", version = "0.1.0" }
-axiom-macros = { path = "crates/axiom-macros", version = "0.1.0" }
-
-num-traits = "0.2"
-syn = { version = "2", features = ["full", "extra-traits", "visit"] }
-quote = "1"
-proc-macro2 = "1"

@@ -1,0 +1,30 @@
+[package]
+name = "tpt-axiom-macros"
+description = "Procedural macros for tpt-axiom, including the #[zk_provable] circuit-lowering macro."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords = ["zero-knowledge", "proc-macro", "macro", "circuit", "zkp"]
+categories = ["development-tools::procedural-macro-helpers", "cryptography", "compiler-plugins"]
+
+[lints]
+workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }
+proc-macro-crate = "3"
+
+[dev-dependencies]
+tpt-axiom-ir = { workspace = true }
+tpt-axiom-zk = { workspace = true }
+trybuild = "1"

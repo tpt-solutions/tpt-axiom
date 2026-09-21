@@ -1,6 +1,6 @@
 [package]
-name = "tpt-axiom"
-description = "Probabilistic logic and native zero-knowledge state for Rust"
+name = "tpt-axiom-zk"
+description = "Backend-agnostic zero-knowledge abstractions (CircuitDefinition, ZkBackend) for tpt-axiom"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,14 +9,11 @@ authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
-keywords.workspace = true
-categories.workspace = true
+keywords = ["zero-knowledge", "zkp", "circuit", "prover", "verifier"]
+categories = ["cryptography", "mathematics", "no-std"]
 
 [lints]
 workspace = true
 
 [dependencies]
-tpt-axiom-core = { workspace = true }
 tpt-axiom-ir = { workspace = true }
-tpt-axiom-macros = { workspace = true }
-tpt-axiom-zk = { workspace = true }

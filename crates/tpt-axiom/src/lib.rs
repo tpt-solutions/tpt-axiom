@@ -41,15 +41,15 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-pub use axiom_core;
-pub use axiom_ir;
-pub use axiom_macros;
-pub use axiom_zk;
+pub use tpt_axiom_core;
+pub use tpt_axiom_ir;
+pub use tpt_axiom_macros;
+pub use tpt_axiom_zk;
 
 /// The `tpt-axiom` prelude, matching the spec's `use tpt_axiom::prelude::*;`.
 pub mod prelude {
-    pub use axiom_core::{stats, Distribution, Fuzzy};
-    pub use axiom_ir::{ConstraintSystem, ConstraintSystemBuilder, Scalar};
-    pub use axiom_macros::zk_provable;
-    pub use axiom_zk::{CircuitDefinition, ZkBackend};
+    pub use tpt_axiom_core::{stats, Distribution, Fuzzy};
+    pub use tpt_axiom_ir::{ConstraintSystem, ConstraintSystemBuilder, Scalar};
+    pub use tpt_axiom_macros::zk_provable;
+    pub use tpt_axiom_zk::{CircuitDefinition, ZkBackend};
 }

@@ -1,6 +1,6 @@
 [package]
-name = "tpt-axiom"
-description = "Probabilistic logic and native zero-knowledge state for Rust"
+name = "tpt-axiom-backend-halo2"
+description = "halo2 ZkBackend adapter for tpt-axiom (Phase 4)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,14 +9,15 @@ authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
-keywords.workspace = true
-categories.workspace = true
+keywords = ["zero-knowledge", "halo2", "zkp", "backend", "plonk"]
+categories = ["cryptography", "mathematics"]
 
 [lints]
 workspace = true
 
 [dependencies]
-tpt-axiom-core = { workspace = true }
 tpt-axiom-ir = { workspace = true }
-tpt-axiom-macros = { workspace = true }
 tpt-axiom-zk = { workspace = true }
+
+[dev-dependencies]
+tpt-axiom-macros = { workspace = true }

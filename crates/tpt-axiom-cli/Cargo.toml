@@ -1,0 +1,27 @@
+[package]
+name = "tpt-axiom-cli"
+description = "Build-time driver for tpt-axiom (key generation, verification invocation)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords = ["zero-knowledge", "cli", "keygen", "prover", "zkp"]
+categories = ["command-line-utilities", "cryptography"]
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "axiom"
+path = "src/main.rs"
+
+[dependencies]
+tpt-axiom-zk = { workspace = true }
+tpt-axiom-ir = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+termcolor = "1.4"
