@@ -1,0 +1,5 @@
+error: closures are not supported in #[zk_provable] functions
+ --> tests/ui/closure.rs:5:13
+  |
+5 |     let f = |x: u64| x + 1;
+  |             ^

@@ -1,32 +1,37 @@
-//! # axiom-ir
+//! # tpt-axiom-ir
 //!
-//! A shared, backend-agnostic **arithmetic intermediate representation** for
-//! tpt-axiom.  It is what [`crate`](https://github.com/tpt-solutions/tpt-axiom)'s
-//! `#[zk_provable]` macro lowers Rust functions *into*, and what verification
-//! tooling (e.g. `tpt-telos`, Phase 3) checks for **circuit equivalence** with
-//! the original Rust logic.
+//! The shared arithmetic intermediate representation (IR) for `tpt-axiom`.
 //!
-//! The IR is a constraint graph that can be lowered to R1CS or `PLONKish` (halo2)
-//! forms.  It carries **variance-propagation constraints** (Phase 1 types) and
-//! arithmetic gate/constraint nodes (Phase 2).
+//! This is the backend-agnostic gate/constraint format that the
+//! [`#[zk_provable]`](https://docs.rs/tpt-axiom-macros) macro lowers Rust
+//! functions into. It sits between the Rust source (application logic) and any
+//! concrete zero-knowledge backend (`halo2`, `arkworks`, `sp1`).
 //!
-//! ## Phase 2 scope
+//! The IR is intentionally small:
 //!
-//! - Constraint graph (`ConstraintGraph`, [`Gate`], [`Constraint`])
-//! - Public/secret input classification
-//! - Lowering to R1CS and `PLONKish` forms
+//! * an expression DAG built from [`ConstraintSystemBuilder`] operations
+//!   (constants, variables, `+`, `-`, `*`, unary `-`);
+//! * a set of [`Constraint`]s asserting equality, zero, or non-negativity;
+//! * an optional lowering to [`R1CS`] quadratic constraints, proving the IR is
+//!   expressive enough for the standard ZK constraint forms.
 //!
-//! This crate is verified formally in Phase 3; a **circuit-mismatch detector**
-//! fails the build when Rust logic and generated circuit diverge.
+//! For now the scalar "field" is modelled as [`Scalar`] = `i64`; backend
+//! adapter crates translate IR expressions into their native field during
+//! compilation (Phase 4).
 
-#![warn(missing_docs)]
+#![no_std]
 #![forbid(unsafe_code)]
+#![warn(missing_docs)]
+#![deny(rust_2018_idioms)]
 
-pub mod constraint;
-pub mod gate;
-pub mod graph;
-pub mod lowering;
+extern crate alloc;
 
-pub use constraint::Constraint;
-pub use gate::Gate;
-pub use graph::{ConstraintGraph, ConstraintIndex, Wire, WireKind};
+pub mod circuit;
+pub mod r1cs;
+
+pub use circuit::{Constraint, ConstraintSystem, ConstraintSystemBuilder, Expr, VariableInfo, Visibility};
+pub use r1cs::{evaluate_linear, EvaluationError, Linear, R1csAssertion, R1csGate, R1CS};
+
+/// Integer scalar model used across the IR. Real backend adapters map this
+/// type onto their native cryptographic field element.
+pub type Scalar = i64;

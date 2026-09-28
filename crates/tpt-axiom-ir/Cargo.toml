@@ -1,6 +1,6 @@
 [package]
 name = "tpt-axiom-ir"
-description = "Shared backend-agnostic arithmetic IR (constraint graphs lowering to R1CS / PLONKish) for tpt-axiom."
+description = "Shared arithmetic intermediate representation (variance-propagation + ZK circuit constraints) for tpt-axiom"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,10 +9,8 @@ authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
-keywords.workspace = true
-categories.workspace = true
+keywords = ["zero-knowledge", "r1cs", "circuit", "intermediate-representation", "arithmetic"]
+categories = ["mathematics", "cryptography", "no-std", "compilers"]
 
 [lints]
 workspace = true
-
-[dependencies]

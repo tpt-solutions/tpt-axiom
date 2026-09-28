@@ -1,0 +1,5 @@
+error: function calls are not supported in #[zk_provable] functions (this includes heap allocation such as `String::new()` or `vec![]`)
+ --> tests/ui/heap_allocation.rs:5:14
+  |
+5 |     let _s = String::new();
+  |              ^^^^^^

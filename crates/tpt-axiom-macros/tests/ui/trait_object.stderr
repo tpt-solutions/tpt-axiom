@@ -1,0 +1,5 @@
+error: parameter type: unsupported type; #[zk_provable] supports only integer primitives (no heap types, trait objects, or generics)
+ --> tests/ui/trait_object.rs:4:31
+  |
+4 | fn takes_dyn(#[secret] value: &dyn core::fmt::Debug) {
+  |                               ^

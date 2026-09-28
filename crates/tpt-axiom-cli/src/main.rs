@@ -1,41 +1,66 @@
-//! `axiom` — build-time driver for tpt-axiom: proving-key/verifying-key
-//! generation and proof verification.
+//! # tpt-axiom-cli
 //!
-//! Phase 0 scaffold: real key-generation and verification wiring lands
-//! alongside the backend adapters in Phase 4.
+//! The `tpt-axiom` build-time driver.
+//!
+//! Later phases use this binary to generate proving/verifying keys for
+//! `#[zk_provable]` circuits, invoke verification (the Phase 3
+//! `tpt-axiom-verify` circuit/variance-formula checks), and drive the
+//! Phase 4 backends.
+//!
+//! **Status: Phase 0 scaffolding.** The command surface exists so scripts and
+//! CI can call `axiom <command>` today; the commands themselves are stubs that
+//! exit non-zero with a clear "not implemented yet" message.
 
-#![forbid(unsafe_code)]
+use std::process::ExitCode;
 
-use clap::{Parser, Subcommand};
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[derive(Parser)]
-#[command(name = "axiom", about = "tpt-axiom build-time driver")]
-struct Cli {
-    #[command(subcommand)]
-    command: Command,
-}
-
-#[derive(Subcommand)]
-enum Command {
-    /// Generate proving and verifying keys for a compiled circuit.
-    Keygen,
-    /// Verify a proof against a verifying key.
-    Verify,
-}
-
-// Phase 4 wires real, fallible key generation/verification behind these
-// subcommands; keep the `Result` return type now so that lands without a
-// signature change.
-#[allow(clippy::unnecessary_wraps)]
-fn main() -> anyhow::Result<()> {
-    let cli = Cli::parse();
-    match cli.command {
-        Command::Keygen => {
-            println!("axiom keygen: not yet implemented (see todo.md Phase 4)");
+fn main() -> ExitCode {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.first().map(String::as_str) {
+        None | Some("help") | Some("--help") | Some("-h") => {
+            print_help();
+            ExitCode::SUCCESS
         }
-        Command::Verify => {
-            println!("axiom verify: not yet implemented (see todo.md Phase 4)");
+        Some("--version") | Some("-V") | Some("version") => {
+            println!("tpt-axiom-cli {VERSION}");
+            ExitCode::SUCCESS
+        }
+        Some("keys") => not_implemented("keys", "Phase 4 (backend adapters)"),
+        Some("verify") => {
+            eprintln!(
+                "tpt-axiom-cli: `verify` has no build-time gate yet (needs a #[zk_provable] \
+                 discovery mechanism, arriving alongside Phase 4's backend key generation).\n\
+                 Today's answer: `cargo test -p tpt-axiom-verify` runs the circuit- and \
+                 variance-formula-mismatch checks directly."
+            );
+            ExitCode::from(2)
+        }
+        Some(other) => {
+            eprintln!("tpt-axiom-cli: unknown command `{other}`");
+            print_help();
+            ExitCode::from(2)
         }
     }
-    Ok(())
+}
+
+fn not_implemented(command: &str, phase: &str) -> ExitCode {
+    eprintln!("tpt-axiom-cli: `{command}` is not implemented yet (arrives in {phase})");
+    ExitCode::from(2)
+}
+
+fn print_help() {
+    println!(
+        "\
+tpt-axiom-cli {VERSION} — tpt-axiom build-time driver
+
+USAGE:
+    axiom <COMMAND>
+
+COMMANDS:
+    keys        Generate proving/verifying keys for a circuit
+    verify      Verify a proof (and, later, Rust <-> circuit equivalence)
+    version     Print the version
+    help        Print this help"
+    );
 }

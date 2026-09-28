@@ -9,8 +9,8 @@ authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
-keywords.workspace = true
-categories.workspace = true
+keywords = ["zero-knowledge", "proc-macro", "macro", "circuit", "zkp"]
+categories = ["development-tools::procedural-macro-helpers", "cryptography", "compiler-plugins"]
 
 [lints]
 workspace = true
@@ -19,7 +19,14 @@ workspace = true
 proc-macro = true
 
 [dependencies]
-proc-macro2 = "1"
-quote = "1"
-syn = { version = "2", features = ["full", "visit", "visit-mut", "printing"] }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }
+proc-macro-crate = "3"
+
+[dev-dependencies]
 tpt-axiom-ir = { workspace = true }
+tpt-axiom-zk = { workspace = true }
+tpt-axiom-verify = { workspace = true }
+trybuild = "1"
+proptest = "1"

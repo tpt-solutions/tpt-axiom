@@ -1,37 +1,40 @@
-//! # axiom-core
+//! # tpt-axiom-core
 //!
-//! Probabilistic logic and uncertainty state for [`tpt-axiom`](https://github.com/tpt-solutions/tpt-axiom).
+//! Probabilistic and uncertainty types for `tpt-axiom`.
 //!
-//! This crate provides the foundational probabilistic types — [`Fuzzy<T>`] and
-//! [`Distribution<T>`] — that wrap a mean and a variance and automatically
-//! propagate uncertainty through operator overloading (error-propagation
-//! algebra).  It is the Phase 1 deliverable scoped in `todo.md`.
+//! This crate provides [`Fuzzy<T>`] (a value plus a variance, with automatic
+//! error propagation through the standard arithmetic operators) and
+//! [`Distribution<T>`] (a more general probability-distribution wrapper).
 //!
-//! ## Todos (Phase 1)
+//! Every arithmetic operation on a [`Fuzzy<T>`] produces a new [`Fuzzy<T>`]
+//! whose mean and variance are derived from the first-order (Gaussian) error
+//! propagation rules. This makes Kalman filters, Monte Carlo simulations and
+//! sensor fusion read like ordinary floating point arithmetic.
 //!
-//! - [x] Define `Fuzzy<T>` struct (mean + variance)
-//! - [x] Define `Distribution<T>` wrapper (Gaussian today, extensible later)
-//! - [x] `Fuzzy::new(mean, variance)` constructor + accessors
-//! - [x] `Add`/`Sub`/`Mul`/`Div` for `Fuzzy<T> ± Fuzzy<T>`, `Fuzzy<T> ± T`, and scalar variants
-//! - [x] Statistical helpers (confidence interval, standard deviation, z-score)
-//! - [x] Unit tests validating propagated variance against closed-form results
-//! - [x] Property / Monte-Carlo cross-check tests
-//! - [x] Kalman-filter / sensor-fusion example (`examples/`)
+//! ```
+//! use tpt_axiom_core::Fuzzy;
 //!
-//! > The probabilistic types in this crate are deliberately backend-independent:
-//! > they depend on no AI vendor, model, inference engine, or network service.
-//! > Zero-knowledge concerns live in `axiom-zk`, not here.
+//! let pos: Fuzzy<f64> = Fuzzy::new(10.5, 0.5);
+//! let vel: Fuzzy<f64> = Fuzzy::new(2.0, 0.1);
+//! let dt = 0.2_f64;
+//!
+//! let next_pos = pos + vel * dt; // uncertainty propagates automatically
+//! assert!((next_pos.mean() - 10.9).abs() < 1e-9);
+//! ```
 
-#![warn(missing_docs)]
+#![no_std]
 #![forbid(unsafe_code)]
+#![warn(missing_docs)]
+#![deny(rust_2018_idioms)]
 
 mod distribution;
 mod fuzzy;
-mod operator;
-pub mod traits;
+mod quants;
 
-#[cfg(test)]
-mod monte_carlo_tests;
+pub use crate::distribution::Distribution;
+pub use crate::fuzzy::Fuzzy;
 
-pub use distribution::Distribution;
-pub use fuzzy::Fuzzy;
+/// Statistical helpers available without importing sub-modules.
+pub mod stats {
+    pub use crate::quants::{erf, norm_cdf, norm_ppf};
+}

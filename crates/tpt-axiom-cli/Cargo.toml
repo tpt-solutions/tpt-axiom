@@ -1,6 +1,6 @@
 [package]
 name = "tpt-axiom-cli"
-description = "Build-time driver for tpt-axiom: proving-key/verifying-key generation and proof verification."
+description = "Build-time driver for tpt-axiom (key generation, verification invocation)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,8 @@ authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
-keywords.workspace = true
-categories.workspace = true
+keywords = ["zero-knowledge", "cli", "keygen", "prover", "zkp"]
+categories = ["command-line-utilities", "cryptography"]
 
 [lints]
 workspace = true

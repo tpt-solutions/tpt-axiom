@@ -44,7 +44,7 @@ let dt = 1.0;
 // Ordinary `+`/`*` — the propagated variance comes along for free.
 let next_pos = pos_reading + (vel_reading * dt);
 
-println!("{:?} ± {:.3}", next_pos.mean(), next_pos.std_dev());
+println!("{:?} ± {:.3}", next_pos.mean(), next_pos.standard_deviation());
 ```
 
 Run the Kalman-filter example:
@@ -63,6 +63,7 @@ See [examples/README.md](examples/README.md) for more.
 | `tpt-axiom-ir`                | Shared backend-agnostic arithmetic IR (Phase 2)                     |
 | `tpt-axiom-macros`           | `#[zk_provable]` proc-macro (Phase 2)                               |
 | `tpt-axiom-zk`                | `ZkBackend` trait + circuit/proving-key/verifying-key abstractions  |
+| `tpt-axiom-verify`            | Polynomial-identity circuit/variance-formula verification (Phase 3) |
 | `tpt-axiom-backend-halo2`     | halo2 backend adapter (Phase 4)                                     |
 | `tpt-axiom-backend-arkworks`  | arkworks backend adapter (Phase 4)                                  |
 | `tpt-axiom-backend-sp1`       | sp1 backend adapter (Phase 4)                                       |

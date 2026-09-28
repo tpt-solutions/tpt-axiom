@@ -1,9 +1,24 @@
-//! # axiom-backend-arkworks
+//! # tpt-axiom-backend-arkworks
 //!
-//! arkworks [`tpt_axiom_zk::ZkBackend`] adapter for tpt-axiom.
+//! The `arkworks` adapter for `tpt-axiom`.
 //!
-//! Phase 0 scaffold: empty until Phase 4 implements real proving/verifying
-//! key generation and proof production for arkworks.
+//! **Status: Phase 4 scaffolding.** This crate is intentionally an empty shell
+//! until the backend work lands. It will implement
+//! [`tpt_axiom_zk::ZkBackend`] for the arkworks proving stack, converting the
+//! backend-agnostic [`tpt_axiom_ir::ConstraintSystem`] into arkworks R1CS.
 
-#![warn(missing_docs)]
+#![no_std]
 #![forbid(unsafe_code)]
+#![warn(missing_docs)]
+
+pub use tpt_axiom_ir;
+pub use tpt_axiom_zk;
+
+/// The arkworks [`tpt_axiom_zk::ZkBackend`] implementation (Phase 4).
+#[derive(Debug, Default, Clone, Copy)]
+pub struct ArkworksBackend;
+
+impl ArkworksBackend {
+    /// The backend's stable identifier.
+    pub const NAME: &'static str = "arkworks";
+}

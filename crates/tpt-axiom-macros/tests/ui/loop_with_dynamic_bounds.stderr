@@ -1,0 +1,5 @@
+error: control flow is not supported in #[zk_provable] functions; only straight-line arithmetic is allowed
+ --> tests/ui/loop_with_dynamic_bounds.rs:5:5
+  |
+5 |     for _ in 0..n {
+  |     ^^^
