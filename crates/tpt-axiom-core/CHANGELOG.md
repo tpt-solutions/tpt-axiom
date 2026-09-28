@@ -16,6 +16,15 @@ and this crate adheres to [Semantic Versioning](https://semver.org/).
   conversion), `Evidence<T>` (multiplicative combination), and `Provenance`
   metadata. All re-exported through the `tpt-axiom` prelude.
 - Opt-in `serde` feature serialising every intelligence type and `Fuzzy<T>` itself.
+- Uncertainty Operations: `Probability::{noisy_or, conjunct, pooled, into_confidence}`,
+  `Confidence::{conjunct, disjunct}`, `Evidence::combine_all`,
+  `Categorical::bayesian_update`, `Distribution::{affine, map_first_order}`,
+  `classify_by_confidence` + `Escalation`, `Reproducibility`, and the `Validate`
+  deterministic-validation trait.
+- Decision Types: `Ranking<T>`, `MultiLabelDecision`, `Hypotheses<T>`,
+  `DecisionRecord<T>`, `Calibration`, `BinaryDecision`, `Categorical::decide`.
+- Property-based invariant tests (proptest) and wire-format v1 serde
+  roundtrip tests (`tests/properties.rs`).
 
 ### Changed
 

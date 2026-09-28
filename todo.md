@@ -95,45 +95,45 @@ License: dual **MIT OR Apache-2.0**. Author: **TPT Solutions**.
 - [x] Ensure all core types are strongly typed, composable, serialisable and backend-independent — no crypto/AI-vendor dependencies; opt-in `serde` feature (derive) on `tpt-axiom-core` serialises every intelligence type; tested with and without the feature.
 
 ### Uncertainty Operations
-- [ ] Implement probability validation and normalisation.
-- [ ] Implement distribution transformations.
-- [ ] Implement uncertainty-preserving arithmetic.
-- [ ] Implement probability and confidence propagation.
-- [ ] Implement evidence combination.
-- [ ] Implement conditional probability primitives.
-- [ ] Implement Bayesian update primitives.
-- [ ] Implement threshold and escalation primitives.
-- [ ] Implement conversion from probabilistic results to deterministic decisions through explicit policies.
-- [ ] Preserve uncertainty information unless explicitly discarded by the caller.
+- [x] Implement probability validation and normalisation — `Probability::new`/`new_unchecked`, `Categorical::new` normalizing construction, and the `Validate` trait re-checking both.
+- [x] Implement distribution transformations — `Distribution::affine` (exact for Gaussians) and `map_first_order` (delta-method approximation).
+- [x] Implement uncertainty-preserving arithmetic — `Fuzzy<T>` operator overloads plus `Uncertain<T>::map` (first-order propagation) that never discards spread.
+- [x] Implement probability and confidence propagation — `Probability::{noisy_or, conjunct, pooled}`, `Confidence::{conjunct, disjunct}`.
+- [x] Implement evidence combination — `Evidence::{combine, combine_all}` (multiplicative, provenance-preserving).
+- [x] Implement conditional probability primitives — likelihood application `P(E|H)` is the engine of `Categorical::bayesian_update` / `Hypotheses::revise`; joint/marginal chances via `noisy_or`/`conjunct`.
+- [x] Implement Bayesian update primitives — `Categorical::bayesian_update` (posterior over reweighted prior) and `Hypotheses::revise`.
+- [x] Implement threshold and escalation primitives — `classify_by_confidence` + `Escalation` (accept/review/reject bands, policy parameters owned by the caller).
+- [x] Implement conversion from probabilistic results to deterministic decisions through explicit policies — `Decision::from_score`, `Ranking::decide`, `Categorical::decide` (thresholds always caller-supplied).
+- [x] Preserve uncertainty information unless explicitly discarded by the caller — enforced by `Uncertain<T>`: only `point_estimate()` drops spread, and the name marks it.
 
 ### AI Decision Types
-- [ ] Define binary yes/no decision representation.
-- [ ] Define categorical choice representation.
-- [ ] Define ranking/selection representation.
-- [ ] Define numerical scoring representation.
-- [ ] Define multi-label decision representation.
-- [ ] Define abstention/insufficient-confidence representation.
-- [ ] Define competing-hypothesis representation.
-- [ ] Define decision provenance and backend metadata.
-- [ ] Define calibration metadata where available.
+- [x] Define binary yes/no decision representation — `BinaryDecision` (`Decision<bool>`) with `Decision::yes`/`no` constructors.
+- [x] Define categorical choice representation — `Categorical::decide(threshold)` committing to the most likely outcome.
+- [x] Define ranking/selection representation — `Ranking<T>` (best-first scored candidates) with `decide`.
+- [x] Define numerical scoring representation — `Score<T>` (value + `Confidence`).
+- [x] Define multi-label decision representation — `MultiLabelDecision` (per-label binary decisions; uncertainty never leaks between labels).
+- [x] Define abstention/insufficient-confidence representation — `Decision::Abstain { reason }` with `AbstentionReason`.
+- [x] Define competing-hypothesis representation — `Hypotheses<T>` (normalized posterior + `revise` + `leader`).
+- [x] Define decision provenance and backend metadata — `DecisionRecord<T>` bundling a decision with `Provenance`.
+- [x] Define calibration metadata where available — `Calibration` (method, reference, expected calibration error, validated).
 
 ### Verification & Trust
-- [ ] Define deterministic validation of all probabilistic outputs.
-- [ ] Define reproducibility metadata.
-- [ ] Define computation provenance.
-- [ ] Define evidence provenance.
-- [ ] Define verification boundaries between probabilistic and deterministic computation.
-- [ ] Design a proof interface for verifiable probabilistic computations.
-- [ ] Define interfaces suitable for future formal verification.
-- [ ] Define interfaces suitable for future zero-knowledge verification.
-- [ ] Ensure cryptographic/proof mechanisms remain optional and do not contaminate the core type system.
+- [x] Define deterministic validation of all probabilistic outputs — the `Validate` trait (range, normalization re-checks) implemented for `Probability`, `Confidence`, `Categorical`.
+- [x] Define reproducibility metadata — `Reproducibility` (algorithm, version, RNG seed).
+- [x] Define computation provenance — `Provenance` (origin/timestamp/revision), plus `Reproducibility` for re-run data.
+- [x] Define evidence provenance — every `Evidence` carries its own `Provenance`.
+- [x] Define verification boundaries between probabilistic and deterministic computation — `Validate` (trust-free invariant checks) on one side, `tpt_axiom_zk::claim::ProofClaim` (proof-carrying statements) on the other; nothing crosses implicitly.
+- [x] Design a proof interface for verifiable probabilistic computations — `ProofClaim<B: ZkBackend>`: circuit name + public inputs + opaque proof, verified via `verify_with(backend, vk)`.
+- [x] Define interfaces suitable for future formal verification — the intelligence types are pure, total functions over validated data with documented invariants (the same property `tpt-axiom-verify` audits for variance formulas).
+- [x] Define interfaces suitable for future zero-knowledge verification — `ProofClaim` works unchanged over any future `ZkBackend` implementation (sp1's contract is already in place).
+- [x] Ensure cryptographic/proof mechanisms remain optional and do not contaminate the core type system — `tpt-axiom-core` has no crypto dependencies; `ProofClaim` is data-only and lives behind `tpt-axiom-zk`.
 
 ### Interoperability
-- [ ] Define a stable serialisation format for probabilistic values and decisions.
-- [ ] Define conversion interfaces for Augur.
-- [ ] Define conversion interfaces for TPT inference runtimes.
-- [ ] Define interfaces for external AI/decision engines.
-- [ ] Ensure Axiom does not depend on any specific AI vendor, model, inference engine or network service.
-- [ ] Add comprehensive property-based tests for probabilistic invariants.
-- [ ] Add conformance tests for all probabilistic types.
-- [ ] Document the mathematical and semantic meaning of every public type.
+- [x] Define a stable serialisation format for probabilistic values and decisions — opt-in `serde` with the default representations pinned as wire-format v1 by roundtrip tests (`tests/properties.rs::serde_roundtrips_pin_the_v1_wire_format`).
+- [ ] Define conversion interfaces for Augur — **blocked on the Augur interface spec** (types/schema to convert to/from).
+- [ ] Define conversion interfaces for TPT inference runtimes — **blocked on the runtime interface spec**.
+- [ ] Define interfaces for external AI/decision engines — the seam exists (`Provenance::origin`, vendor-neutral metadata types); concrete conversion traits wait on the target systems above.
+- [x] Ensure Axiom does not depend on any specific AI vendor, model, inference engine or network service — by construction: the foundation is pure `no_std` math and metadata with zero vendor/network dependencies.
+- [x] Add comprehensive property-based tests for probabilistic invariants — `crates/tpt-axiom-core/tests/properties.rs` (proptest: complement partitioning, noisy-OR/conjunct domination, categorical normalization + entropy bounds, evidence-weight closure, policy/threshold agreement, Bayesian renormalization).
+- [x] Add conformance tests for all probabilistic types — unit suites per type in `intelligence`/`decision_types`, plus the invariant properties above and the wire-format roundtrips.
+- [x] Document the mathematical and semantic meaning of every public type — module docs state each type's semantics (probability vs confidence distinction, first-order propagation limits, policy ownership); `cargo doc` builds warning-free.

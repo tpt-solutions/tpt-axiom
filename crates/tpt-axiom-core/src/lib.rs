@@ -29,17 +29,22 @@
 
 extern crate alloc;
 
+mod decision_types;
 mod distribution;
 mod fuzzy;
 mod intelligence;
 mod quants;
 
+pub use crate::decision_types::{
+    BinaryDecision, Calibration, DecisionRecord, Hypotheses, MultiLabelDecision, Ranking,
+};
 pub use crate::distribution::Distribution;
 pub use crate::fuzzy::Fuzzy;
 pub use crate::intelligence::{
-    AbstentionReason, Bernoulli, Categorical, Confidence, Decision, EmptyCategorical, Evidence,
-    InvalidConfidence, InvalidEvidenceWeight, InvalidProbability, Probability, Provenance, Score,
-    Uncertain,
+    AbstentionReason, Bernoulli, Categorical, Confidence, Decision, EmptyCategorical, Escalation,
+    Evidence, InvalidConfidence, InvalidEvidenceWeight, InvalidProbability, Probability,
+    Provenance, Reproducibility, Score, Uncertain, Validate, ValidationError,
+    classify_by_confidence,
 };
 
 /// Statistical helpers available without importing sub-modules.

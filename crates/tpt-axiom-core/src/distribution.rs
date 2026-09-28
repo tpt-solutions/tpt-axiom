@@ -84,6 +84,34 @@ impl<T: Float> Distribution<T> {
         }
     }
 
+    /// Affine transform `a * x + b`, exact for the Gaussian case (means
+    /// transform linearly, variances by `a^2`).
+    #[must_use]
+    pub fn affine(&self, a: T, b: T) -> Self {
+        match *self {
+            Self::Gaussian { mean, variance } => Self::Gaussian {
+                mean: a * mean + b,
+                variance: a * a * variance,
+            },
+            Self::Constant(value) => Self::Constant(a * value + b),
+        }
+    }
+
+    /// Non-linear transform through `f`, using the first-order (delta-method)
+    /// approximation with derivative `df` at the operating point: variance
+    /// scales by `df^2`. For affine `f` prefer [`Distribution::affine`],
+    /// which is exact.
+    #[must_use]
+    pub fn map_first_order(&self, f: impl Fn(T) -> T, df: T) -> Self {
+        match *self {
+            Self::Gaussian { mean, variance } => Self::Gaussian {
+                mean: f(mean),
+                variance: df * df * variance,
+            },
+            Self::Constant(value) => Self::Constant(f(value)),
+        }
+    }
+
     fn into_fuzzy(self) -> Fuzzy<T> {
         match self {
             Self::Gaussian { mean, variance } => Fuzzy::new(mean, variance),
@@ -246,6 +274,26 @@ mod tests {
         let variance = sumsq / f64::from(n) - mean * mean;
         assert!((mean - 100.0).abs() < 0.05);
         assert!((variance - 25.0).abs() < 0.15);
+    }
+
+    #[test]
+    fn affine_is_exact_for_gaussians() {
+        let g = Distribution::<f64>::gaussian(10.0, 4.0);
+        let t = g.affine(2.0, 1.0);
+        assert_eq!(t.mean(), 21.0);
+        assert_eq!(t.variance(), 16.0); // a^2 * v
+        let c = Distribution::<f64>::Constant(3.0).affine(2.0, 1.0);
+        assert_eq!(c.mean(), 7.0);
+        assert_eq!(c.variance(), 0.0);
+    }
+
+    #[test]
+    fn first_order_map_matches_affine_when_linear() {
+        let g = Distribution::<f64>::gaussian(10.0, 4.0);
+        let via_map = g.map_first_order(|x| 2.0 * x + 1.0, 2.0);
+        let via_affine = g.affine(2.0, 1.0);
+        assert_eq!(via_map.mean(), via_affine.mean());
+        assert_eq!(via_map.variance(), via_affine.variance());
     }
 
     #[test]

@@ -29,6 +29,7 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::uninlined_format_args)]
 
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 
@@ -101,6 +102,26 @@ impl Probability {
     #[must_use]
     pub const fn complement(self) -> Self {
         Self(1.0 - self.0)
+    }
+
+    /// The chance that *at least one* of two independent events occurs:
+    /// `1 - (1-p)(1-q)` (noisy-OR).
+    #[must_use]
+    pub fn noisy_or(self, other: Self) -> Self {
+        Self(1.0 - (1.0 - self.0) * (1.0 - other.0))
+    }
+
+    /// The chance that *both* independent events occur: `p * q`.
+    #[must_use]
+    pub fn conjunct(self, other: Self) -> Self {
+        Self(self.0 * other.0)
+    }
+
+    /// Reads this chance as a decision confidence (the explicit reverse of
+    /// [`Confidence::into_probability`]).
+    #[must_use]
+    pub const fn into_confidence(self) -> Confidence {
+        Confidence(self.0)
     }
 
     /// Linear pooling of two chances about the *same* event, weighted.
@@ -210,6 +231,19 @@ impl Confidence {
     #[must_use]
     pub const fn into_probability(self) -> Probability {
         Probability(self.0)
+    }
+
+    /// Propagates confidence through a conjunctive (AND) step: the weaker
+    /// belief bounds the result, so this is `min`.
+    #[must_use]
+    pub const fn conjunct(self, other: Self) -> Self {
+        Self(if self.0 <= other.0 { self.0 } else { other.0 })
+    }
+
+    /// Propagates confidence through a disjunctive (OR) step: `max`.
+    #[must_use]
+    pub const fn disjunct(self, other: Self) -> Self {
+        Self(if self.0 >= other.0 { self.0 } else { other.0 })
     }
 
     /// True when the confidence meets `threshold`.
@@ -369,6 +403,24 @@ impl<T: PartialEq> Categorical<T> {
             .sum()
     }
 
+    /// Bayesian update: reweights every outcome by `likelihood(outcome)` and
+    /// renormalizes, producing the posterior distribution.
+    ///
+    /// # Errors
+    /// [`EmptyCategorical`] when the revised weights are all non-positive or
+    /// the likelihoods are not finite.
+    pub fn bayesian_update(&self, likelihood: impl Fn(&T) -> f64) -> Result<Self, EmptyCategorical>
+    where
+        T: Clone,
+    {
+        let revised: Vec<(T, f64)> = self
+            .outcomes
+            .iter()
+            .map(|(o, p)| ((*o).clone(), p.value() * likelihood(o)))
+            .collect();
+        Self::new(revised)
+    }
+
     /// Draws one outcome with the supplied uniform `(0, 1)` generator.
     #[must_use]
     pub fn sample(&self, mut uniform: impl FnMut() -> f64) -> &T {
@@ -512,6 +564,158 @@ impl<T> Evidence<T> {
             self.weight * other.weight,
             self.provenance,
         )
+    }
+
+    /// Folds a sequence of independent evidence into `self`, multiplying
+    /// weights left to right (keeping this observation and provenance).
+    ///
+    /// # Errors
+    /// [`InvalidEvidenceWeight`] if any running product leaves the valid
+    /// domain.
+    pub fn combine_all(
+        self,
+        others: impl IntoIterator<Item = Self>,
+    ) -> Result<Self, InvalidEvidenceWeight> {
+        others.into_iter().try_fold(self, Evidence::combine)
+    }
+}
+
+/// Threshold classification of a confidence level under an explicit
+/// three-way policy.
+///
+/// Commit above `accept_at`, escalate (e.g. to review) in the band between
+/// `accept_at` and `reject_at`, and reject below.
+///
+/// The policy parameters belong to the caller; this is only the primitive.
+#[must_use]
+pub fn classify_by_confidence(
+    confidence: Confidence,
+    accept_at: Confidence,
+    reject_at: Confidence,
+) -> Escalation {
+    if confidence.meets(accept_at) {
+        Escalation::Accept
+    } else if confidence.meets(reject_at) {
+        Escalation::Review
+    } else {
+        Escalation::Reject
+    }
+}
+
+/// The outcome of [`classify_by_confidence`]: a threshold/escalation
+/// primitive over confidence levels.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum Escalation {
+    /// Confidence is high enough to act automatically.
+    Accept,
+    /// Confidence falls in the escalation band; defer (review, second model).
+    Review,
+    /// Confidence is too low; do not act on this output.
+    Reject,
+}
+
+/// Deterministic validation of probabilistic outputs: re-check a value's
+/// invariants without any trust in the producer.
+///
+/// This is the verification-boundary primitive for the intelligence types —
+/// everything checkable without cryptography (ranges, normalization) runs
+/// here; proof-based verification stays behind `tpt-axiom-zk` and never
+/// leaks into these types.
+pub trait Validate {
+    /// Validation failure: an invalid chance value or a broken structural
+    /// invariant.
+    type Error: core::fmt::Display;
+
+    /// Re-checks the invariants.
+    ///
+    /// # Errors
+    /// The first violated invariant, as the type's error.
+    fn validate(&self) -> Result<(), Self::Error>;
+}
+
+impl Validate for Probability {
+    type Error = InvalidProbability;
+
+    fn validate(&self) -> Result<(), Self::Error> {
+        Probability::new(self.0).map(|_: Probability| ())
+    }
+}
+
+impl Validate for Confidence {
+    type Error = InvalidConfidence;
+
+    fn validate(&self) -> Result<(), Self::Error> {
+        Confidence::new(self.0).map(|_: Confidence| ())
+    }
+}
+
+impl<T: PartialEq> Validate for Categorical<T> {
+    type Error = ValidationError;
+
+    fn validate(&self) -> Result<(), Self::Error> {
+        if self.outcomes.is_empty() {
+            return Err(ValidationError::Empty);
+        }
+        let mut total = 0.0;
+        for (_, p) in &self.outcomes {
+            if p.value() < 0.0 || p.value() > 1.0 {
+                return Err(ValidationError::ChanceOutOfRange(p.value()));
+            }
+            total += p.value();
+        }
+        if (total - 1.0).abs() > 1e-9 {
+            return Err(ValidationError::NotNormalized(total));
+        }
+        Ok(())
+    }
+}
+
+/// Structural validation failures of a [`Categorical`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ValidationError {
+    /// No outcomes at all.
+    Empty,
+    /// An outcome's chance left `[0, 1]`.
+    ChanceOutOfRange(f64),
+    /// Chances did not sum to one (within `1e-9`).
+    NotNormalized(f64),
+}
+
+impl core::fmt::Display for ValidationError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Empty => f.write_str("categorical has no outcomes"),
+            Self::ChanceOutOfRange(v) => write!(f, "outcome chance {v} outside [0, 1]"),
+            Self::NotNormalized(v) => write!(f, "outcome chances sum to {v}, not 1"),
+        }
+    }
+}
+
+impl core::error::Error for ValidationError {}
+
+/// Reproducibility metadata: what it would take to re-run the computation
+/// that produced a probabilistic result.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Reproducibility {
+    /// Algorithm or pipeline identifier.
+    pub algorithm: String,
+    /// Producer version (crate/model/calibration revision).
+    pub version: Option<String>,
+    /// RNG seed for stochastic stages, when deterministic.
+    pub seed: Option<u64>,
+}
+
+impl Reproducibility {
+    /// Metadata for a fully deterministic, seedless computation.
+    #[must_use]
+    pub fn deterministic(algorithm: impl Into<String>) -> Self {
+        Self {
+            algorithm: algorithm.into(),
+            version: None,
+            seed: None,
+        }
     }
 }
 
