@@ -32,5 +32,5 @@ pub mod circuit;
 pub mod fuzzy;
 pub mod poly;
 
-pub use circuit::{check_comparison, evaluate, normalize_all, Comparison};
-pub use poly::{expect_equal, Mismatch, Polynomial};
+pub use circuit::{Comparison, check_comparison, evaluate, normalize_all};
+pub use poly::{Mismatch, Polynomial, expect_equal};

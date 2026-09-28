@@ -85,7 +85,7 @@ pub fn lower_function(func: &ItemFn, backend: &str) -> syn::Result<TokenStream> 
 /// umbrella crate (which re-exports both supporting crates), then the
 /// conventional underscored crate name.
 fn resolve_crate(package: &str, fallback: &str) -> TokenStream {
-    use proc_macro_crate::{crate_name, FoundCrate};
+    use proc_macro_crate::{FoundCrate, crate_name};
     match crate_name(package) {
         Ok(FoundCrate::Itself) => quote!(crate),
         Ok(FoundCrate::Name(name)) => {
@@ -127,7 +127,7 @@ impl Lowerer {
                     return Err(Error::new(
                         r.span(),
                         "#[zk_provable] functions cannot take `self`; they must be free functions",
-                    ))
+                    ));
                 }
                 FnArg::Typed(pt) => pt,
             };
@@ -218,7 +218,9 @@ impl Lowerer {
         if !self.bound.insert(name.clone()) {
             return Err(Error::new(
                 ident.span(),
-                format!("variable `{name}` is bound more than once; shadowing is not supported in #[zk_provable] functions"),
+                format!(
+                    "variable `{name}` is bound more than once; shadowing is not supported in #[zk_provable] functions"
+                ),
             ));
         }
         self.tokens.extend(quote! {
@@ -315,7 +317,7 @@ impl Lowerer {
                         return Err(Error::new(
                             other.span(),
                             "`assert!` in #[zk_provable] must contain a comparison such as `a >= b`",
-                        ))
+                        ));
                     }
                 };
                 self.lower_comparison(bin)
@@ -329,12 +331,14 @@ impl Lowerer {
                 })?;
                 let l = self.compile_expr(&parsed.0)?;
                 let r = self.compile_expr(&parsed.1)?;
-                self.emit_eq(l, r);
+                self.emit_eq(&l, &r);
                 Ok(())
             }
             other => Err(Error::new(
                 segment.ident.span(),
-                format!("macro `{other}!` is not supported in #[zk_provable] functions (only `assert!` and `assert_eq!` are recognized)"),
+                format!(
+                    "macro `{other}!` is not supported in #[zk_provable] functions (only `assert!` and `assert_eq!` are recognized)"
+                ),
             )),
         }
     }
@@ -344,42 +348,43 @@ impl Lowerer {
         let r = self.compile_expr(&bin.right)?;
         match bin.op {
             BinOp::Ge(_) => {
-                let d = self.emit_sub(l, r);
-                self.emit_nonneg(d);
+                let d = self.emit_sub(&l, &r);
+                self.emit_nonneg(&d);
             }
             BinOp::Le(_) => {
-                let d = self.emit_sub(r, l);
-                self.emit_nonneg(d);
+                let d = self.emit_sub(&r, &l);
+                self.emit_nonneg(&d);
             }
             BinOp::Gt(_) => {
-                let d = self.emit_sub(l, r);
+                let d = self.emit_sub(&l, &r);
                 let one = self.emit_const(1);
-                let e = self.emit_sub(d, one);
-                self.emit_nonneg(e);
+                let e = self.emit_sub(&d, &one);
+                self.emit_nonneg(&e);
             }
             BinOp::Lt(_) => {
-                let d = self.emit_sub(r, l);
+                let d = self.emit_sub(&r, &l);
                 let one = self.emit_const(1);
-                let e = self.emit_sub(d, one);
-                self.emit_nonneg(e);
+                let e = self.emit_sub(&d, &one);
+                self.emit_nonneg(&e);
             }
-            BinOp::Eq(_) => self.emit_eq(l, r),
+            BinOp::Eq(_) => self.emit_eq(&l, &r),
             BinOp::Ne(_) => {
                 return Err(Error::new(
                     bin.span(),
                     "`!=` cannot be expressed as an arithmetic constraint; use a range check or equality instead",
-                ))
+                ));
             }
             _ => {
                 return Err(Error::new(
                     bin.span(),
                     "the comparison in `assert!` must be one of `>`, `>=`, `<`, `<=` or `==`",
-                ))
+                ));
             }
         }
         Ok(())
     }
 
+    #[allow(clippy::too_many_lines)] // one arm per unsupported Rust construct
     fn compile_expr(&mut self, expr: &Expr) -> syn::Result<Ident> {
         match expr {
             Expr::Path(path) => {
@@ -396,7 +401,9 @@ impl Lowerer {
                 if !self.bound.contains(&ident.to_string()) {
                     return Err(Error::new(
                         ident.span(),
-                        format!("cannot resolve `{ident}` in #[zk_provable]: only parameters and earlier `let` bindings are visible"),
+                        format!(
+                            "cannot resolve `{ident}` in #[zk_provable]: only parameters and earlier `let` bindings are visible"
+                        ),
                     ));
                 }
                 Ok(ident)
@@ -439,13 +446,13 @@ impl Lowerer {
                         return Err(Error::new(
                             bin.span(),
                             "division and remainder are not supported as circuit arithmetic; express them as multiplication by a public/secret inverse explicitly",
-                        ))
+                        ));
                     }
                     _ => {
                         return Err(Error::new(
                             bin.span(),
                             "only `+`, `-` and `*` are supported in #[zk_provable] arithmetic",
-                        ))
+                        ));
                     }
                 };
                 let l = self.compile_expr(&bin.left)?;
@@ -514,19 +521,19 @@ impl Lowerer {
         t
     }
 
-    fn emit_sub(&mut self, l: Ident, r: Ident) -> Ident {
+    fn emit_sub(&mut self, l: &Ident, r: &Ident) -> Ident {
         let t = self.fresh();
         self.tokens
             .extend(quote! { let #t = __axiom_builder.sub(#l, #r); });
         t
     }
 
-    fn emit_eq(&mut self, l: Ident, r: Ident) {
+    fn emit_eq(&mut self, l: &Ident, r: &Ident) {
         self.tokens
             .extend(quote! { __axiom_builder.constrain_eq(#l, #r); });
     }
 
-    fn emit_nonneg(&mut self, e: Ident) {
+    fn emit_nonneg(&mut self, e: &Ident) {
         self.tokens
             .extend(quote! { __axiom_builder.constrain_non_negative(#e); });
     }
@@ -541,7 +548,7 @@ impl Parse for OneExpr {
         if !input.is_empty() {
             return Err(input.error("unexpected extra tokens"));
         }
-        Ok(OneExpr(expr))
+        Ok(Self(expr))
     }
 }
 
@@ -556,7 +563,7 @@ impl Parse for TwoExprs {
         if !input.is_empty() {
             return Err(input.error("unexpected extra tokens"));
         }
-        Ok(TwoExprs(a, b))
+        Ok(Self(a, b))
     }
 }
 
@@ -599,23 +606,45 @@ fn validate_integer_type(ty: &Type, context: &str) -> syn::Result<()> {
 fn is_integer_primitive(name: &str) -> bool {
     matches!(
         name,
-        "u8" | "u16" | "u32" | "u64" | "u128" | "usize" | "i8" | "i16" | "i32" | "i64" | "i128" | "isize"
+        "u8" | "u16"
+            | "u32"
+            | "u64"
+            | "u128"
+            | "usize"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "i128"
+            | "isize"
     )
 }
 
 fn validate_signature(func: &ItemFn) -> syn::Result<()> {
     let sig = &func.sig;
     if let Some(asyncness) = &sig.asyncness {
-        return Err(Error::new(asyncness.span(), "`async` functions cannot be circuits"));
+        return Err(Error::new(
+            asyncness.span(),
+            "`async` functions cannot be circuits",
+        ));
     }
     if let Some(unsafety) = &sig.unsafety {
-        return Err(Error::new(unsafety.span(), "`unsafe` functions cannot be circuits"));
+        return Err(Error::new(
+            unsafety.span(),
+            "`unsafe` functions cannot be circuits",
+        ));
     }
     if let Some(abi) = &sig.abi {
-        return Err(Error::new(abi.span(), "`extern` functions cannot be circuits"));
+        return Err(Error::new(
+            abi.span(),
+            "`extern` functions cannot be circuits",
+        ));
     }
     if let Some(constness) = &sig.constness {
-        return Err(Error::new(constness.span(), "`const fn` cannot be a circuit"));
+        return Err(Error::new(
+            constness.span(),
+            "`const fn` cannot be a circuit",
+        ));
     }
     if !sig.generics.params.is_empty() || sig.generics.where_clause.is_some() {
         return Err(Error::new(
@@ -624,7 +653,10 @@ fn validate_signature(func: &ItemFn) -> syn::Result<()> {
         ));
     }
     if let Some(variadic) = &sig.variadic {
-        return Err(Error::new(variadic.span(), "variadic functions cannot be circuits"));
+        return Err(Error::new(
+            variadic.span(),
+            "variadic functions cannot be circuits",
+        ));
     }
     if let ReturnType::Type(_, ty) = &sig.output {
         validate_integer_type(ty, "return type")?;

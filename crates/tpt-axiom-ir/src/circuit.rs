@@ -2,9 +2,9 @@
 //! and the builder used by `#[zk_provable]`-generated code.
 
 use alloc::borrow::ToOwned;
-use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+use core::fmt::Write as _;
 
 use crate::Scalar;
 
@@ -85,40 +85,49 @@ pub struct ConstraintSystem {
 
 impl ConstraintSystem {
     /// Returns the named variable's id, if it is a variable expression.
+    #[must_use]
     pub fn variable_id(&self, name: &str) -> Option<usize> {
         self.exprs.iter().enumerate().find_map(|(id, e)| match e {
-            Expr::Var(v) if self.variables.get(*v).map(|i| i.name.as_str()) == Some(name) => Some(id),
+            Expr::Var(v) if self.variables.get(*v).map(|i| i.name.as_str()) == Some(name) => {
+                Some(id)
+            }
             _ => None,
         })
     }
 
     /// Number of named public inputs + outputs.
+    #[must_use]
     pub fn num_public(&self) -> usize {
         self.public_inputs.len()
     }
 
     /// Number of secret witness variables declared.
+    #[must_use]
     pub fn num_secret(&self) -> usize {
         self.secret_inputs.len()
     }
 
     /// Render the circuit as a multi-line textual description (diagnostics and
     /// Phase 3 equivalence checking).
+    #[must_use]
     pub fn describe(&self) -> String {
         let mut out = String::new();
-        out.push_str(&format!("circuit {} {{\n", self.name));
-        for (kind, ids) in [("public", &self.public_inputs), ("secret", &self.secret_inputs)] {
+        let _ = core::writeln!(&mut out, "circuit {} {{", self.name);
+        for (kind, ids) in [
+            ("public", &self.public_inputs),
+            ("secret", &self.secret_inputs),
+        ] {
             for &id in ids {
                 if let Expr::Var(v) = &self.exprs[id] {
                     if let Some(info) = self.variables.get(*v) {
-                        out.push_str(&format!("  {kind} input {}\n", info.name));
+                        let _ = core::writeln!(&mut out, "  {kind} input {}", info.name);
                     }
                 }
             }
         }
         out.push_str("  constraints\n");
         for c in &self.constraints {
-            out.push_str(&format!("    {c:?}\n"));
+            let _ = core::writeln!(&mut out, "    {c:?}");
         }
         out.push('}');
         out
@@ -223,6 +232,7 @@ impl ConstraintSystemBuilder {
     }
 
     /// Finalize into a [`ConstraintSystem`].
+    #[must_use]
     pub fn build(self) -> ConstraintSystem {
         self.system
     }
@@ -252,10 +262,7 @@ mod tests {
         assert_eq!(ir.num_public(), 2);
         assert_eq!(ir.num_secret(), 1);
         assert_eq!(ir.constraints.len(), 2);
-        assert_eq!(
-            ir.constraints[0],
-            Constraint::NonNegative(surplus)
-        );
+        assert_eq!(ir.constraints[0], Constraint::NonNegative(surplus));
         assert_eq!(ir.constraints[1], Constraint::Equal(new_receiver, rhs));
         assert_eq!(ir.variable_id("amount"), Some(amount));
     }

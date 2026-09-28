@@ -48,7 +48,7 @@ pub struct R1CS {
     pub public_slots: Vec<usize>,
     /// Witness slot holding each secret input.
     pub secret_slots: Vec<usize>,
-    /// Witness slot holding each expression node (index = ExprId).
+    /// Witness slot holding each expression node (index = `ExprId`).
     pub expr_slots: Vec<Option<usize>>,
     /// Witness slot holding each named variable (index = variable id).
     pub var_slots: Vec<Option<usize>>,
@@ -85,6 +85,12 @@ fn const_gate(slot: usize, value: Scalar) -> R1csGate {
 /// constraints are encoded as `A · 1 = C` gates (a standard trick), and
 /// constants are pinned to their value with a dedicated gate. The constant
 /// `witness[0]` is always `1`.
+///
+/// # Panics
+/// Panics if the IR references an expression id that is out of range
+/// (cannot happen for systems built by [`ConstraintSystemBuilder`]).
+#[allow(clippy::too_many_lines)] // one match arm per IR node kind
+#[must_use]
 pub fn lower_r1cs(ir: &ConstraintSystem) -> R1CS {
     let mut gates = Vec::new();
     let mut assertions = Vec::new();
@@ -201,6 +207,7 @@ fn const1() -> Linear {
 }
 
 /// Evaluate a linear combination against a witness.
+#[must_use]
 pub fn evaluate_linear(lin: &Linear, witness: &[Scalar]) -> Scalar {
     lin.iter().map(|&(i, c)| c * witness[i]).sum()
 }
@@ -231,6 +238,15 @@ pub enum EvaluationError {
 
 impl R1CS {
     /// Check a full witness assignment (including `witness[0] == 1`).
+    ///
+    /// # Errors
+    /// Returns [`EvaluationError::GateFailed`] for the first failing quadratic
+    /// gate and [`EvaluationError::NonNegativeFailed`] for a violated
+    /// non-negativity assertion.
+    ///
+    /// # Panics
+    /// Panics if `witness` does not have exactly [`R1CS::num_variables`]
+    /// entries or `witness[0] != 1`.
     pub fn evaluate(&self, witness: &[Scalar]) -> Result<(), EvaluationError> {
         assert!(
             witness.len() == self.num_variables,
@@ -244,7 +260,12 @@ impl R1CS {
             let b = evaluate_linear(&gate.b, witness);
             let c = evaluate_linear(&gate.c, witness);
             if a * b != c {
-                return Err(EvaluationError::GateFailed { index, lhs: a, rhs: b, out: c });
+                return Err(EvaluationError::GateFailed {
+                    index,
+                    lhs: a,
+                    rhs: b,
+                    out: c,
+                });
             }
         }
         for &R1csAssertion::NonNegative(slot) in &self.assertions {
@@ -282,7 +303,9 @@ mod tests {
     /// children, given assigned public/secret inputs.
     fn satisfy(ir: &ConstraintSystem, witness: &mut [Scalar], r1cs: &R1CS) {
         for (id, e) in ir.exprs.iter().enumerate() {
-            let Some(slot) = r1cs.expr_slots[id] else { continue };
+            let Some(slot) = r1cs.expr_slots[id] else {
+                continue;
+            };
             let value = match *e {
                 Expr::Const(c) => c,
                 Expr::Var(v) => {
@@ -312,9 +335,15 @@ mod tests {
                         unreachable!("unclassified variable")
                     }
                 }
-                Expr::Add(l, r) => witness[r1cs.expr_slots[l].unwrap()] + witness[r1cs.expr_slots[r].unwrap()],
-                Expr::Sub(l, r) => witness[r1cs.expr_slots[l].unwrap()] - witness[r1cs.expr_slots[r].unwrap()],
-                Expr::Mul(l, r) => witness[r1cs.expr_slots[l].unwrap()] * witness[r1cs.expr_slots[r].unwrap()],
+                Expr::Add(l, r) => {
+                    witness[r1cs.expr_slots[l].unwrap()] + witness[r1cs.expr_slots[r].unwrap()]
+                }
+                Expr::Sub(l, r) => {
+                    witness[r1cs.expr_slots[l].unwrap()] - witness[r1cs.expr_slots[r].unwrap()]
+                }
+                Expr::Mul(l, r) => {
+                    witness[r1cs.expr_slots[l].unwrap()] * witness[r1cs.expr_slots[r].unwrap()]
+                }
                 Expr::Neg(n) => -witness[r1cs.expr_slots[n].unwrap()],
             };
             witness[slot] = value;

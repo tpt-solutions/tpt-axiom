@@ -18,11 +18,11 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
-        None | Some("help") | Some("--help") | Some("-h") => {
+        None | Some("help" | "--help" | "-h") => {
             print_help();
             ExitCode::SUCCESS
         }
-        Some("--version") | Some("-V") | Some("version") => {
+        Some("--version" | "-V" | "version") => {
             println!("tpt-axiom-cli {VERSION}");
             ExitCode::SUCCESS
         }

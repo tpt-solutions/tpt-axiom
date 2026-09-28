@@ -19,10 +19,10 @@ fn prove_balance_transfer(
 }
 
 #[zk_provable(backend = "arkworks")]
+#[allow(clippy::missing_const_for_fn)] // kept fn shape is fixed by the macro
 fn weighted_sum(a: u64, b: u64, #[secret] k: u64) -> u64 {
     let scaled = a * k;
-    let total = scaled + b;
-    return total;
+    scaled + b
 }
 
 #[zk_provable(backend = "sp1")]
@@ -68,10 +68,11 @@ fn comparison_operators_lower() {
     assert_eq!(ir.num_secret(), 1);
     // x >= lo, x <= hi, x < hi+1 each become one non-negativity constraint.
     assert_eq!(ir.constraints.len(), 3);
-    assert!(ir
-        .constraints
-        .iter()
-        .all(|c| matches!(c, Constraint::NonNegative(_))));
+    assert!(
+        ir.constraints
+            .iter()
+            .all(|c| matches!(c, Constraint::NonNegative(_)))
+    );
 }
 
 #[test]
@@ -115,6 +116,7 @@ proptest::proptest! {
     #![proptest_config(proptest::prelude::ProptestConfig::with_cases(64))]
 
     #[test]
+    #[allow(clippy::cast_possible_wrap)] // u64 samples feed i64 circuits
     fn weighted_sum_ir_matches_rust(a in 0u64..1000, b in 0u64..1000, k in 0u64..1000) {
         let expected = weighted_sum(a, b, k);
         let ir = WeightedSum.build();

@@ -14,10 +14,12 @@ use num_traits::Float;
 
 use crate::Fuzzy;
 
-/// A general probabilistic value. Currently only the Gaussian and constant
-/// cases are implemented; other distribution families are future work (see
-/// `todo.md`'s "AI & Probabilistic Intelligence Foundation" section).
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// A general probabilistic value.
+///
+/// Currently only the Gaussian and constant cases are implemented; other
+/// distribution families are future work (see `todo.md`'s "AI & Probabilistic
+/// Intelligence Foundation" section).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Distribution<T> {
     /// A Gaussian (normal) distribution with the given mean and variance.
     Gaussian {
@@ -32,17 +34,17 @@ pub enum Distribution<T> {
 
 impl<T: Float> Distribution<T> {
     /// Construct a Gaussian distribution from a mean and a variance.
-    pub fn gaussian(mean: T, variance: T) -> Self {
+    pub const fn gaussian(mean: T, variance: T) -> Self {
         Self::Gaussian { mean, variance }
     }
 
     /// Construct a deterministic (certain) distribution.
-    pub fn constant(value: T) -> Self {
+    pub const fn constant(value: T) -> Self {
         Self::Constant(value)
     }
 
     /// The distribution's mean.
-    pub fn mean(&self) -> T {
+    pub const fn mean(&self) -> T {
         match self {
             Self::Gaussian { mean, .. } => *mean,
             Self::Constant(value) => *value,
@@ -64,6 +66,11 @@ impl<T: Float> Distribution<T> {
 
     /// Draws a sample from the distribution using `rng`, a closure producing
     /// independent uniform draws in `[0, 1)`.
+    ///
+    /// # Panics
+    /// Panics if `rng` yields a value outside `(0, 1)` (propagated from
+    /// [`crate::quants::norm_ppf`]).
+    #[must_use]
     pub fn sample(&self, mut rng: impl FnMut() -> f64) -> T
     where
         T: num_traits::FromPrimitive,
@@ -88,9 +95,9 @@ impl<T: Float> Distribution<T> {
 impl<T: Float> From<Fuzzy<T>> for Distribution<T> {
     fn from(f: Fuzzy<T>) -> Self {
         if f.variance() == T::zero() {
-            Distribution::Constant(f.mean())
+            Self::Constant(f.mean())
         } else {
-            Distribution::Gaussian {
+            Self::Gaussian {
                 mean: f.mean(),
                 variance: f.variance(),
             }
@@ -100,7 +107,7 @@ impl<T: Float> From<Fuzzy<T>> for Distribution<T> {
 
 impl<T: Float> From<T> for Distribution<T> {
     fn from(v: T) -> Self {
-        Distribution::Constant(v)
+        Self::Constant(v)
     }
 }
 
@@ -119,7 +126,7 @@ impl<T: Float> TryFrom<Distribution<T>> for Fuzzy<T> {
     type Error = NotGaussian;
     fn try_from(d: Distribution<T>) -> Result<Self, Self::Error> {
         match d {
-            Distribution::Gaussian { mean, variance } => Ok(Fuzzy::new(mean, variance)),
+            Distribution::Gaussian { mean, variance } => Ok(Self::new(mean, variance)),
             Distribution::Constant(_) => Err(NotGaussian),
         }
     }
@@ -143,6 +150,9 @@ impl_distribution_op!(Div, div);
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::float_cmp)] // exact-value assertions on analytic results
+    #![allow(clippy::cast_precision_loss)] // deterministic seeded-RNG casts
+
     use super::*;
 
     #[test]
@@ -212,9 +222,12 @@ mod tests {
     #[test]
     fn sample_gaussian_matches_moments() {
         // Purely deterministic seeded RNG for reproducibility.
-        let mut state = 0x2545F4914F6CDD1D_u64;
+        let mut state = 0x2545_F491_4F6C_DD1D_u64;
         let mut rng = || {
-            state = state.wrapping_mul(0x9E3779B97F4A7C15).rotate_left(37).wrapping_add(1);
+            state = state
+                .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                .rotate_left(37)
+                .wrapping_add(1);
             (state >> 11) as f64 / (1_u64 << 53) as f64
         };
         let g = Distribution::<f64>::Gaussian {
@@ -229,8 +242,8 @@ mod tests {
             sum += x;
             sumsq += x * x;
         }
-        let mean = sum / n as f64;
-        let variance = sumsq / n as f64 - mean * mean;
+        let mean = sum / f64::from(n);
+        let variance = sumsq / f64::from(n) - mean * mean;
         assert!((mean - 100.0).abs() < 0.05);
         assert!((variance - 25.0).abs() < 0.15);
     }

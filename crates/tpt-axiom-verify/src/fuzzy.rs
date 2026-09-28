@@ -21,7 +21,7 @@
 //! Symbols used throughout: `mean_a`, `var_a`, `mean_b`, `var_b` are the two
 //! operands' means/variances; `k` is a certain (zero-variance) scalar.
 
-use crate::poly::{expect_equal, Mismatch, Polynomial};
+use crate::poly::{Mismatch, Polynomial, expect_equal};
 
 /// Symbol id for `a`'s mean.
 pub const MEAN_A: usize = 0;
@@ -112,7 +112,8 @@ pub fn check_mul_variance() -> Result<(), Mismatch> {
 pub fn check_div_variance() -> Result<(), Mismatch> {
     let mean_b2 = var(MEAN_B) * var(MEAN_B);
     let implemented = var(VAR_A) * mean_b2 + var(VAR_B) * var(MEAN_A) * var(MEAN_A);
-    let reference = (var(MEAN_A) * var(MEAN_A)) * var(VAR_B) + (var(MEAN_B) * var(MEAN_B)) * var(VAR_A);
+    let reference =
+        (var(MEAN_A) * var(MEAN_A)) * var(VAR_B) + (var(MEAN_B) * var(MEAN_B)) * var(VAR_A);
     expect_equal(implemented, reference)
 }
 

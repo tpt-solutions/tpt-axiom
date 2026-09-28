@@ -80,7 +80,7 @@ impl Parse for ZkProvableArgs {
         if !input.is_empty() {
             return Err(input.error("unexpected tokens after backend argument"));
         }
-        Ok(ZkProvableArgs {
+        Ok(Self {
             backend: value.value(),
         })
     }

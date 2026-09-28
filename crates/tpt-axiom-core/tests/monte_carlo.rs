@@ -3,6 +3,10 @@
 //! and variance agree with the *analytically propagated* values within a
 //! tolerance that accounts for sampling noise.
 
+// Statistical moments compare against tolerances, but individual sample
+// plumbing uses exact `f64` conversions from the deterministic RNG.
+#![allow(clippy::cast_precision_loss)]
+
 use tpt_axiom_core::Fuzzy;
 
 /// Deterministic splitmix64 `(0,1)` uniform generator (keeps tests hermetic).
@@ -24,7 +28,7 @@ impl SplitMix {
     /// Standard-normal draw via Box–Muller, using `next` for uniforms.
     fn next_gaussian(&mut self) -> f64 {
         let u1 = self.next().max(f64::EPSILON);
-        let u2 = self.next().max(f64::EPSILON).min(1.0);
+        let u2 = self.next().clamp(f64::EPSILON, 1.0);
         (-2.0 * u1.ln()).sqrt() * (std::f64::consts::TAU * u2).cos()
     }
 }
@@ -36,7 +40,7 @@ fn sample_moments(samples: impl Iterator<Item = f64>) -> (f64, f64) {
     for x in samples {
         n += 1;
         sum += x;
-        sumsq += x * x;
+        sumsq = x.mul_add(x, sumsq);
     }
     let mean = sum / n as f64;
     let var = sumsq / n as f64 - mean * mean;
@@ -58,8 +62,12 @@ fn monte_carlo_addition() {
     let (em, ev) = {
         let mut rng = SplitMix(0xDEAD_BEEF);
         sample_moments((0..n).map(|_| {
-            a.mean() + a.standard_deviation() * rng.next_gaussian()
-                + b.mean() + b.standard_deviation() * rng.next_gaussian()
+            b.standard_deviation().mul_add(
+                rng.next_gaussian(),
+                a.standard_deviation()
+                    .mul_add(rng.next_gaussian(), a.mean())
+                    + b.mean(),
+            )
         }))
     };
     let c = a + b;
@@ -75,8 +83,10 @@ fn monte_carlo_multiplication() {
     let (em, ev) = {
         let mut rng = SplitMix(0xBADC_0FFE);
         sample_moments((0..n).map(|_| {
-            (a.mean() + a.standard_deviation() * rng.next_gaussian())
-                * (b.mean() + b.standard_deviation() * rng.next_gaussian())
+            a.standard_deviation()
+                .mul_add(rng.next_gaussian(), a.mean())
+                * b.standard_deviation()
+                    .mul_add(rng.next_gaussian(), b.mean())
         }))
     };
     let c = a * b;
@@ -98,8 +108,10 @@ fn monte_carlo_division() {
     let (em, ev) = {
         let mut rng = SplitMix(0xF00D_DEAD);
         sample_moments((0..n).map(|_| {
-            (a.mean() + a.standard_deviation() * rng.next_gaussian())
-                / (b.mean() + b.standard_deviation() * rng.next_gaussian())
+            a.standard_deviation()
+                .mul_add(rng.next_gaussian(), a.mean())
+                / b.standard_deviation()
+                    .mul_add(rng.next_gaussian(), b.mean())
         }))
     };
     let c = a / b;
@@ -114,7 +126,11 @@ fn monte_carlo_scalar_scaling() {
     let k = 7.5_f64;
     let (em, ev) = {
         let mut rng = SplitMix(0x1234_5678);
-        let scaled = (0..n).map(|_| (a.mean() + a.standard_deviation() * rng.next_gaussian()) * k);
+        let scaled = (0..n).map(|_| {
+            a.standard_deviation()
+                .mul_add(rng.next_gaussian(), a.mean())
+                * k
+        });
         sample_moments(scaled)
     };
     let c = a * k;
@@ -133,8 +149,12 @@ fn monte_carlo_kalman_fusion() {
 
     let mut rng = SplitMix(0x9E37_79B9);
     let (em, ev) = sample_moments((0..n).map(|_| {
-        let ra = a.mean() + a.standard_deviation() * rng.next_gaussian();
-        let rb = b.mean() + b.standard_deviation() * rng.next_gaussian();
+        let ra = a
+            .standard_deviation()
+            .mul_add(rng.next_gaussian(), a.mean());
+        let rb = b
+            .standard_deviation()
+            .mul_add(rng.next_gaussian(), b.mean());
         // Optimal two-measurement combination, m* = (m_a v_b + m_b v_a)/(v_a+v_b).
         (ra * b.variance() + rb * a.variance()) / (a.variance() + b.variance())
     }));

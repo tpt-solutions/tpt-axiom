@@ -16,5 +16,29 @@ categories = ["cryptography", "mathematics"]
 workspace = true
 
 [dependencies]
-tpt-axiom-zk = { workspace = true }
 tpt-axiom-ir = { workspace = true }
+tpt-axiom-zk = { workspace = true }
+ark-ff = { workspace = true }
+ark-ec = { workspace = true }
+ark-relations = { workspace = true }
+ark-r1cs-std = { workspace = true }
+ark-groth16 = { workspace = true }
+ark-snark = { workspace = true }
+ark-serialize = { workspace = true }
+ark-std = { workspace = true }
+ark-bls12-381 = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+tpt-axiom-macros = { workspace = true }
+tpt-axiom-zk = { workspace = true, features = ["conformance"] }
+ark-bls12-381 = { workspace = true }
+ark-groth16 = { workspace = true }
+ark-relations = { workspace = true }
+ark-serialize = { workspace = true }
+ark-std = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "backend"
+harness = false

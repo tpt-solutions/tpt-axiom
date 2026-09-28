@@ -15,7 +15,7 @@ use alloc::vec::Vec;
 use tpt_axiom_ir::circuit::ExprId;
 use tpt_axiom_ir::{Constraint, ConstraintSystem, Expr, Scalar};
 
-use crate::poly::{expect_equal, Mismatch, Polynomial};
+use crate::poly::{Mismatch, Polynomial, expect_equal};
 
 /// Which comparison a [`Constraint`] is supposed to encode. Mirrors the
 /// operators `tpt-axiom-macros`'s `lower_comparison` recognizes (see
@@ -34,10 +34,12 @@ pub enum Comparison {
     Eq,
 }
 
-/// Computes the canonical polynomial for every expression in `cs`, indexed by
-/// [`ExprId`]. `#[zk_provable]`'s builder (`ConstraintSystemBuilder`) only
-/// ever pushes an expression after the sub-expressions it references, so a
-/// single forward pass is enough — no recursion needed.
+/// Computes the canonical polynomial for every expression in `cs`, indexed
+/// by [`ExprId`].
+///
+/// `#[zk_provable]`'s builder (`ConstraintSystemBuilder`) only ever pushes an
+/// expression after the sub-expressions it references, so a single forward
+/// pass is enough — no recursion needed.
 #[must_use]
 pub fn normalize_all(cs: &ConstraintSystem) -> Vec<Polynomial> {
     let mut table: Vec<Polynomial> = Vec::with_capacity(cs.exprs.len());
@@ -97,8 +99,12 @@ pub fn check_comparison(
 /// other side of that `Equal` constraint instead.
 #[must_use]
 pub fn evaluate(cs: &ConstraintSystem, inputs: &[(&str, Scalar)]) -> Vec<Scalar> {
-    let lookup =
-        |name: &str| -> Scalar { inputs.iter().find(|(n, _)| *n == name).map_or(0, |(_, v)| *v) };
+    let lookup = |name: &str| -> Scalar {
+        inputs
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map_or(0, |(_, v)| *v)
+    };
     let mut table: Vec<Scalar> = Vec::with_capacity(cs.exprs.len());
     for expr in &cs.exprs {
         let v = match *expr {

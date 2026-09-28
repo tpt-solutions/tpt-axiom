@@ -29,6 +29,9 @@ pub trait ZkBackend {
     fn name(&self) -> &'static str;
 
     /// Compile an IR circuit into the backend's native circuit form.
+    ///
+    /// # Errors
+    /// Backend-specific failure while lowering the IR.
     fn compile(&self, ir: &ConstraintSystem) -> Result<Self::Circuit, Self::Error>;
 
     /// Lower the IR into the reference R1CS form (used for conformance and the
@@ -40,6 +43,9 @@ pub trait ZkBackend {
     /// Generate proving and verifying keys for an IR circuit. `params` carries
     /// backend-specific security parameters (e.g. the K t from halo2); an empty
     /// slice requests the backend's defaults.
+    ///
+    /// # Errors
+    /// Backend-specific failure during parameter generation or key derivation.
     fn generate_keys(
         &self,
         ir: &ConstraintSystem,
@@ -50,6 +56,10 @@ pub trait ZkBackend {
     ///
     /// `public` and `secret` hold the values of `ir.public_inputs` and
     /// `ir.secret_inputs` respectively, in declaration order.
+    ///
+    /// # Errors
+    /// Backend-specific failure while synthesizing or proving; implementations
+    /// are expected to reject witnesses that violate the IR.
     fn prove(
         &self,
         circuit: &Self::Circuit,
@@ -59,6 +69,11 @@ pub trait ZkBackend {
     ) -> Result<Self::Proof, Self::Error>;
 
     /// Verify a proof against the public inputs only.
+    ///
+    /// # Errors
+    /// Backend-specific failure while checking the proof. A malformed proof
+    /// is a clean `Ok(false)`, not an error, where the backend can
+    /// distinguish the two.
     fn verify(
         &self,
         vk: &Self::VerifyingKey,

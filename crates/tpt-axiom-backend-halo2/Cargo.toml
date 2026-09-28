@@ -18,6 +18,18 @@ workspace = true
 [dependencies]
 tpt-axiom-ir = { workspace = true }
 tpt-axiom-zk = { workspace = true }
+halo2_proofs = { workspace = true }
+pasta_curves = { workspace = true }
+ff = { workspace = true }
+group = { workspace = true }
+rand = { workspace = true }
 
 [dev-dependencies]
 tpt-axiom-macros = { workspace = true }
+tpt-axiom-zk = { workspace = true, features = ["conformance"] }
+halo2_proofs = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "backend"
+harness = false

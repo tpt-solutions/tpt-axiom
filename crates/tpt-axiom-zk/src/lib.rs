@@ -19,10 +19,15 @@
 #![warn(missing_docs)]
 #![deny(rust_2018_idioms)]
 
+extern crate alloc;
+
 pub use tpt_axiom_ir;
 
 mod backend;
 mod circuit;
+#[cfg(feature = "conformance")]
+pub mod conformance;
+pub mod witness;
 
 pub use crate::backend::ZkBackend;
 pub use crate::circuit::CircuitDefinition;

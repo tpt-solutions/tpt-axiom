@@ -15,5 +15,11 @@ categories = ["cryptography", "mathematics", "no-std"]
 [lints]
 workspace = true
 
+[features]
+default = []
+# Exposes `tpt_axiom_zk::conformance`: generic prove/verify drivers shared by
+# every backend adapter's test suite.
+conformance = []
+
 [dependencies]
 tpt-axiom-ir = { workspace = true }

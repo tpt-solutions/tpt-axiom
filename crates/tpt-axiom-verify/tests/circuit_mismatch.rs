@@ -3,7 +3,7 @@
 //! useful diagnostic, and a correct lowering passes.
 
 use tpt_axiom_ir::{Constraint, ConstraintSystemBuilder};
-use tpt_axiom_verify::{check_comparison, normalize_all, Comparison};
+use tpt_axiom_verify::{Comparison, check_comparison, normalize_all};
 
 #[test]
 fn correct_ge_lowering_passes() {
@@ -16,13 +16,7 @@ fn correct_ge_lowering_passes() {
     let cs = b.build();
 
     let table = normalize_all(&cs);
-    let result = check_comparison(
-        &table,
-        &cs.constraints[0],
-        Comparison::Ge,
-        sender,
-        amount,
-    );
+    let result = check_comparison(&table, &cs.constraints[0], Comparison::Ge, sender, amount);
     assert!(result.is_ok(), "correct lowering should verify: {result:?}");
 }
 
@@ -41,13 +35,7 @@ fn off_by_one_lowering_is_caught() {
     let cs = b.build();
 
     let table = normalize_all(&cs);
-    let result = check_comparison(
-        &table,
-        &cs.constraints[0],
-        Comparison::Ge,
-        sender,
-        amount,
-    );
+    let result = check_comparison(&table, &cs.constraints[0], Comparison::Ge, sender, amount);
     let mismatch = result.expect_err("off-by-one lowering must be rejected");
     let message = mismatch.to_string();
     assert!(
@@ -68,13 +56,7 @@ fn swapped_operands_are_caught() {
     let cs = b.build();
 
     let table = normalize_all(&cs);
-    let result = check_comparison(
-        &table,
-        &cs.constraints[0],
-        Comparison::Ge,
-        sender,
-        amount,
-    );
+    let result = check_comparison(&table, &cs.constraints[0], Comparison::Ge, sender, amount);
     assert!(result.is_err(), "swapped operands must be rejected");
     assert!(matches!(cs.constraints[0], Constraint::NonNegative(_)));
 }

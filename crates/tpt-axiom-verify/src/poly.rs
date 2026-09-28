@@ -138,9 +138,11 @@ impl fmt::Display for Polynomial {
     }
 }
 
-/// Two polynomials that were expected to be identical but aren't: the
-/// generic "these two symbolic arithmetic expressions disagree" result
-/// used across the crate (circuit-comparison mismatches, formula mismatches).
+/// Two polynomials that were expected to be identical but aren't.
+///
+/// The generic "these two symbolic arithmetic expressions disagree" result
+/// used across the crate (circuit-comparison mismatches, formula
+/// mismatches).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Mismatch {
     /// The polynomial actually found (e.g. what a constraint encodes, or
@@ -153,11 +155,7 @@ pub struct Mismatch {
 
 impl fmt::Display for Mismatch {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "expected `{}` but found `{}`",
-            self.expected, self.found
-        )
+        write!(f, "expected `{}` but found `{}`", self.expected, self.found)
     }
 }
 

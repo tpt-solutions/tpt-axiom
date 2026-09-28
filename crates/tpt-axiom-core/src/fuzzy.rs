@@ -25,7 +25,7 @@ use num_traits::{Float, FromPrimitive};
 /// the results a Taylor expansion of the underlying deterministic function
 /// yields. The same rules are what Phase 3's formal-verification bridge audits
 /// against `tpt-telos`.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Fuzzy<T> {
     mean: T,
     variance: T,
@@ -55,13 +55,13 @@ impl<T: Float> Fuzzy<T> {
 
     /// The point estimate of the value.
     #[inline]
-    pub fn mean(&self) -> T {
+    pub const fn mean(&self) -> T {
         self.mean
     }
 
     /// The squared standard error: a measure of how uncertain the value is.
     #[inline]
-    pub fn variance(&self) -> T {
+    pub const fn variance(&self) -> T {
         self.variance
     }
 
@@ -115,6 +115,7 @@ impl<T: Float> Fuzzy<T> {
     /// m = (m_a * v_b + m_b * v_a) / (v_a + v_b)
     /// ```
     #[inline]
+    #[must_use]
     pub fn fuse(&self, other: &Self) -> Self {
         let v_sum = self.variance + other.variance;
         let variance = self.variance * other.variance / v_sum;
@@ -151,26 +152,26 @@ impl<T: Float + fmt::Display> fmt::Display for Fuzzy<T> {
 
 /// `(a + b).mean = a.mean + b.mean`, `(a + b).variance = a.variance + b.variance`.
 impl<T: Float> Add for Fuzzy<T> {
-    type Output = Fuzzy<T>;
+    type Output = Self;
     #[inline]
-    fn add(self, rhs: Fuzzy<T>) -> Self::Output {
-        Fuzzy::new(self.mean + rhs.mean, self.variance + rhs.variance)
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::new(self.mean + rhs.mean, self.variance + rhs.variance)
     }
 }
 
 impl<T: Float> AddAssign for Fuzzy<T> {
     #[inline]
-    fn add_assign(&mut self, rhs: Fuzzy<T>) {
+    fn add_assign(&mut self, rhs: Self) {
         *self = *self + rhs;
     }
 }
 
 /// Adding a certain scalar: variance is unchanged.
 impl<T: Float> Add<T> for Fuzzy<T> {
-    type Output = Fuzzy<T>;
+    type Output = Self;
     #[inline]
     fn add(self, rhs: T) -> Self::Output {
-        Fuzzy::new(self.mean + rhs, self.variance)
+        Self::new(self.mean + rhs, self.variance)
     }
 }
 
@@ -195,25 +196,25 @@ impl<T: Float> Add<T> for &Fuzzy<T> {
 
 /// `(a - b).mean = a.mean - b.mean`, variance still adds.
 impl<T: Float> Sub for Fuzzy<T> {
-    type Output = Fuzzy<T>;
+    type Output = Self;
     #[inline]
-    fn sub(self, rhs: Fuzzy<T>) -> Self::Output {
-        Fuzzy::new(self.mean - rhs.mean, self.variance + rhs.variance)
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self::new(self.mean - rhs.mean, self.variance + rhs.variance)
     }
 }
 
 impl<T: Float> SubAssign for Fuzzy<T> {
     #[inline]
-    fn sub_assign(&mut self, rhs: Fuzzy<T>) {
+    fn sub_assign(&mut self, rhs: Self) {
         *self = *self - rhs;
     }
 }
 
 impl<T: Float> Sub<T> for Fuzzy<T> {
-    type Output = Fuzzy<T>;
+    type Output = Self;
     #[inline]
     fn sub(self, rhs: T) -> Self::Output {
-        Fuzzy::new(self.mean - rhs, self.variance)
+        Self::new(self.mean - rhs, self.variance)
     }
 }
 
@@ -225,10 +226,10 @@ impl<T: Float> SubAssign<T> for Fuzzy<T> {
 }
 
 impl<T: Float> Neg for Fuzzy<T> {
-    type Output = Fuzzy<T>;
+    type Output = Self;
     #[inline]
     fn neg(self) -> Self::Output {
-        Fuzzy::new(-self.mean, self.variance)
+        Self::new(-self.mean, self.variance)
     }
 }
 
@@ -243,30 +244,30 @@ impl<T: Float> Neg for &Fuzzy<T> {
 /// Product mean is the product of means; variance follows the independence
 /// rule `v_ab = v_a v_b + v_a m_b² + v_b m_a²`.
 impl<T: Float> Mul for Fuzzy<T> {
-    type Output = Fuzzy<T>;
+    type Output = Self;
     #[inline]
-    fn mul(self, rhs: Fuzzy<T>) -> Self::Output {
+    fn mul(self, rhs: Self) -> Self::Output {
         let mean = self.mean * rhs.mean;
         let variance = self.variance * rhs.variance
             + self.variance * rhs.mean * rhs.mean
             + rhs.variance * self.mean * self.mean;
-        Fuzzy::new(mean, variance)
+        Self::new(mean, variance)
     }
 }
 
 impl<T: Float> MulAssign for Fuzzy<T> {
     #[inline]
-    fn mul_assign(&mut self, rhs: Fuzzy<T>) {
+    fn mul_assign(&mut self, rhs: Self) {
         *self = *self * rhs;
     }
 }
 
 /// Scaling by a certain factor: variance scales with its square.
 impl<T: Float> Mul<T> for Fuzzy<T> {
-    type Output = Fuzzy<T>;
+    type Output = Self;
     #[inline]
     fn mul(self, rhs: T) -> Self::Output {
-        Fuzzy::new(self.mean * rhs, self.variance * rhs * rhs)
+        Self::new(self.mean * rhs, self.variance * rhs * rhs)
     }
 }
 
@@ -288,29 +289,29 @@ impl<T: Float> Mul<T> for &Fuzzy<T> {
 /// Division mean is the quotient of means (requires `rhs.mean != 0`); the
 /// variance rule is the delta-method result for independent operands.
 impl<T: Float> Div for Fuzzy<T> {
-    type Output = Fuzzy<T>;
+    type Output = Self;
     #[inline]
-    fn div(self, rhs: Fuzzy<T>) -> Self::Output {
+    fn div(self, rhs: Self) -> Self::Output {
         let mean = self.mean / rhs.mean;
         let b2 = rhs.mean * rhs.mean;
         let b4 = b2 * b2;
         let variance = (self.variance * b2 + rhs.variance * self.mean * self.mean) / b4;
-        Fuzzy::new(mean, variance)
+        Self::new(mean, variance)
     }
 }
 
 impl<T: Float> DivAssign for Fuzzy<T> {
     #[inline]
-    fn div_assign(&mut self, rhs: Fuzzy<T>) {
+    fn div_assign(&mut self, rhs: Self) {
         *self = *self / rhs;
     }
 }
 
 impl<T: Float> Div<T> for Fuzzy<T> {
-    type Output = Fuzzy<T>;
+    type Output = Self;
     #[inline]
     fn div(self, rhs: T) -> Self::Output {
-        Fuzzy::new(self.mean / rhs, self.variance / (rhs * rhs))
+        Self::new(self.mean / rhs, self.variance / (rhs * rhs))
     }
 }
 
@@ -378,6 +379,9 @@ impl_scalar_ops!(f32, f64);
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::float_cmp)] // exact-value assertions on analytic results
+    #![allow(clippy::cast_precision_loss)] // deterministic seeded-RNG casts
+
     use super::*;
     use crate::quants::norm_cdf;
 
@@ -391,13 +395,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "variance must be non-negative and finite")]
     fn rejects_negative_variance() {
         let _ = Fuzzy::<f64>::new(1.0, -1.0);
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "variance must be non-negative and finite")]
     fn rejects_nan_variance() {
         let _ = Fuzzy::<f64>::new(1.0, f64::NAN);
     }
@@ -481,7 +485,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "confidence level must lie in (0, 1)")]
     fn confidence_interval_rejects_out_of_range() {
         let x = Fuzzy::new(10.0_f64, 4.0);
         let _ = x.confidence_interval(1.1);
@@ -525,7 +529,7 @@ mod tests {
         let vel = Fuzzy::new(2.0_f64, 0.1);
         let dt = 0.2_f64;
         // `&Fuzzy * T` via the reference implementations.
-        let next = &vel * dt;
+        let next = vel * dt;
         assert!((next.mean() - 0.4).abs() < 1e-12);
         assert!((next.variance() - 0.1 * 0.04).abs() < 1e-12);
         let summed = &vel + 1.0;

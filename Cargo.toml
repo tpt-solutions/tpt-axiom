@@ -63,6 +63,23 @@ syn = { version = "2", features = ["full", "extra-traits", "visit"] }
 quote = "1"
 proc-macro2 = "1"
 
+# Phase 4 backend stacks.
+halo2_proofs = { version = "0.3", default-features = false }
+pasta_curves = { version = "0.5", features = ["alloc"] }
+ff = "0.13"
+group = "0.13"
+rand = "0.8"
+ark-ff = "0.5"
+ark-ec = "0.5"
+ark-relations = "0.5"
+ark-r1cs-std = "0.5"
+ark-groth16 = "0.5"
+ark-snark = "0.5"
+ark-serialize = "0.5"
+ark-std = "0.5"
+ark-bls12-381 = "0.5"
+criterion = "0.5"
+
 [profile.release]
 lto = "thin"
 

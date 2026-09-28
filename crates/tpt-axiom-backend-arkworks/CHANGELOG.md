@@ -6,9 +6,26 @@ and this crate adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Full `ZkBackend` implementation: R1CS lowering of the IR (`circuit`
+  module), Groth16 circuit-specific setup over BLS12-381, proving, and
+  verification.
+- Signed `i64` circuit semantics via bit-decomposition range checks on every
+  named input and `NonNegative` constraint; `ArkworksParams` (`range_bits`)
+  carried in the backend `params` byte string.
+- IR-level witness validation at prove time via the shared
+  `tpt_axiom_zk::witness` check.
+- Canonical serialization helper (`to_bytes`) for keys and proofs, with a
+  wire-format roundtrip test.
+- Groth16 roundtrip/rejection tests (`tests/proofs.rs`); conformance-suite
+  integration (`tests/conformance.rs`).
+- Criterion benchmarks matching the halo2 backend's scenario IDs
+  (`benches/backend.rs`).
+
 ### Changed
 
-- Crate renamed from `axiom-backend-arkworks` to `tpt-axiom-backend-arkworks`.
+- Crate renamed from `axiom-backend-arkworks` to `tpt-axiom-backend-arkworks` (Phase 0).
 
 ## [0.1.0] - Phase 0
 

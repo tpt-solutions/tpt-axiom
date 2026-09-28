@@ -29,8 +29,10 @@ extern crate alloc;
 pub mod circuit;
 pub mod r1cs;
 
-pub use circuit::{Constraint, ConstraintSystem, ConstraintSystemBuilder, Expr, VariableInfo, Visibility};
-pub use r1cs::{evaluate_linear, EvaluationError, Linear, R1csAssertion, R1csGate, R1CS};
+pub use circuit::{
+    Constraint, ConstraintSystem, ConstraintSystemBuilder, Expr, VariableInfo, Visibility,
+};
+pub use r1cs::{EvaluationError, Linear, R1CS, R1csAssertion, R1csGate, evaluate_linear};
 
 /// Integer scalar model used across the IR. Real backend adapters map this
 /// type onto their native cryptographic field element.

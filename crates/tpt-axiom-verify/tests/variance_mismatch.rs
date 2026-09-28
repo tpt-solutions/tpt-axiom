@@ -1,8 +1,8 @@
 //! Integration test (todo.md Phase 3): a deliberately-wrong variance-
 //! propagation formula is caught against the correct reference identity.
 
-use tpt_axiom_verify::fuzzy::{check_mul_variance, MEAN_A, MEAN_B, VAR_A, VAR_B};
-use tpt_axiom_verify::{expect_equal, Polynomial};
+use tpt_axiom_verify::fuzzy::{MEAN_A, MEAN_B, VAR_A, VAR_B, check_mul_variance};
+use tpt_axiom_verify::{Polynomial, expect_equal};
 
 #[test]
 fn correct_mul_variance_passes() {
@@ -13,7 +13,9 @@ fn correct_mul_variance_passes() {
 fn dropped_term_is_caught() {
     // Deliberately wrong: drops the `Var(A)Var(B)` term from
     // `Var(AB) = Var(A)Var(B) + Var(A)E[B]^2 + Var(B)E[A]^2`.
-    let broken = Polynomial::variable(VAR_A) * Polynomial::variable(MEAN_B) * Polynomial::variable(MEAN_B)
+    let broken = Polynomial::variable(VAR_A)
+        * Polynomial::variable(MEAN_B)
+        * Polynomial::variable(MEAN_B)
         + Polynomial::variable(VAR_B) * Polynomial::variable(MEAN_A) * Polynomial::variable(MEAN_A);
     let reference = Polynomial::variable(VAR_A) * Polynomial::variable(VAR_B)
         + Polynomial::variable(VAR_A) * Polynomial::variable(MEAN_B) * Polynomial::variable(MEAN_B)
