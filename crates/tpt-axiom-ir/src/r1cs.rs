@@ -88,7 +88,8 @@ fn const_gate(slot: usize, value: Scalar) -> R1csGate {
 ///
 /// # Panics
 /// Panics if the IR references an expression id that is out of range
-/// (cannot happen for systems built by [`ConstraintSystemBuilder`]).
+/// (cannot happen for systems built by
+/// [`ConstraintSystemBuilder`](crate::ConstraintSystemBuilder)).
 #[allow(clippy::too_many_lines)] // one match arm per IR node kind
 #[must_use]
 pub fn lower_r1cs(ir: &ConstraintSystem) -> R1CS {

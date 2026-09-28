@@ -35,7 +35,7 @@ License: dual **MIT OR Apache-2.0**. Author: **TPT Solutions**.
 - [x] Unit tests validating propagated variance against known closed-form results
 - [x] Property/Monte Carlo cross-check tests (sample many draws, compare empirical variance to analytically propagated variance within tolerance)
 - [x] Sensor fusion / Kalman filter example in `examples/` using only standard arithmetic on `Fuzzy<T>`
-- [x] **Milestone:** Kalman filter and Monte Carlo simulation examples compile and run using natural `+`/`*` syntax with correct propagated uncertainty. (Monte Carlo cross-checks live as tests in `tpt-axiom-core`; a standalone `examples/monte_carlo.rs`-style walkthrough is still open for Phase 5's "expand examples" pass.)
+- [x] **Milestone:** Kalman filter and Monte Carlo simulation examples compile and run using natural `+`/`*` syntax with correct propagated uncertainty. (Monte Carlo cross-checks live as tests in `tpt-axiom-core`; the standalone walkthrough landed as `crates/tpt-axiom/examples/monte_carlo.rs` in Phase 5.)
 
 ## Phase 2: ZK Arithmetic IR & `#[zk_provable]` Macro (Months 4-6)
 
@@ -72,12 +72,12 @@ License: dual **MIT OR Apache-2.0**. Author: **TPT Solutions**.
 
 ## Phase 5: Documentation, Examples & Release
 
-- [ ] Full API docs (`cargo doc`) for all public types, traits, and the `#[zk_provable]` macro
-- [ ] Expand `examples/`: Kalman filter, Monte Carlo simulation, sensor fusion, ZK balance-transfer, ZK backend comparison
-- [ ] Write a migration/getting-started guide in README.md
-- [ ] Publish crates to crates.io (`tpt-axiom-core`, `tpt-axiom-macros`, `tpt-axiom-zk`, backend adapters, `tpt-axiom` umbrella crate)
-- [ ] Set up `docs.rs` documentation
-- [ ] Tag `v0.1.0` release
+- [x] Full API docs (`cargo doc`) for all public types, traits, and the `#[zk_provable]` macro — `cargo doc --no-deps --workspace` builds warning-free (broken intra-doc links fixed)
+- [x] Expand `examples/`: Kalman filter (Phase 1), Monte Carlo simulation, sensor fusion, ZK balance-transfer (prove + separate verifier, Phase 4), ZK backend comparison — under `crates/tpt-axiom/examples/` and `crates/tpt-axiom-backend-halo2/examples/`, indexed from `examples/README.md`
+- [x] Write a migration/getting-started guide in README.md — probabilistic API, `#[zk_provable]`, driving a `ZkBackend`, and a backend-choice table with reference benchmark numbers
+- [ ] Publish crates to crates.io (`tpt-axiom-core`, `tpt-axiom-macros`, `tpt-axiom-zk`, backend adapters, `tpt-axiom` umbrella crate) — **pending owner decision/credentials**
+- [x] Set up `docs.rs` documentation — `[package.metadata.docs.rs] all-features = true` on the feature-bearing crates; docs build warning-free so docs.rs will render cleanly on publish
+- [ ] Tag `v0.1.0` release — deferred alongside the publish step (tagging before the crates.io version exists would misrepresent availability)
 
 ## AI & Probabilistic Intelligence Foundation
 

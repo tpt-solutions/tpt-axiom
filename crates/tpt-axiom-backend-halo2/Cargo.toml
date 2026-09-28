@@ -27,6 +27,7 @@ rand = { workspace = true }
 [dev-dependencies]
 tpt-axiom-macros = { workspace = true }
 tpt-axiom-zk = { workspace = true, features = ["conformance"] }
+tpt-axiom-backend-arkworks = { workspace = true }
 halo2_proofs = { workspace = true }
 criterion = { workspace = true }
 

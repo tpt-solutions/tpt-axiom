@@ -7,9 +7,10 @@
 //!
 //! 1. the original function unchanged (the "source of truth" Rust logic, used
 //!    by the Phase 3 `tpt-telos` equivalence bridge), and
-//! 2. a [`CircuitDefinition`] implementation that lowers the function's
+//! 2. a `CircuitDefinition` implementation (from `tpt-axiom-zk`) that lowers
+//!    the function's
 //!    arithmetic constraints into a backend-agnostic
-//!    [`tpt_axiom_ir::ConstraintSystem`].
+//!    `tpt_axiom_ir::ConstraintSystem`.
 //!
 //! ```ignore
 //! use tpt_axiom_macros::zk_provable;

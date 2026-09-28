@@ -71,7 +71,8 @@ impl fmt::Display for Sp1Error {
 
 impl std::error::Error for Sp1Error {}
 
-/// Marker circuit handle produced by [`Sp1Backend::compile`].
+/// Marker circuit handle produced by
+/// [`Sp1Backend::compile`](tpt_axiom_zk::ZkBackend::compile).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Sp1Circuit(pub alloc::sync::Arc<tpt_axiom_ir::ConstraintSystem>);
 

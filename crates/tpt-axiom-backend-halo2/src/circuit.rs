@@ -87,7 +87,9 @@ const BLINDING_ROWS: usize = 64;
 /// Smallest `k` whose `2^k` rows fit the lowered circuit plus blinding.
 ///
 /// Public so tests and tools (e.g. `MockProver` runs) can size their
-/// parameters exactly like [`crate::Halo2Backend::generate_keys`] does.
+/// parameters exactly like
+/// [`Halo2Backend::generate_keys`](tpt_axiom_zk::ZkBackend::generate_keys)
+/// does.
 #[must_use]
 pub fn auto_k(ir: &ConstraintSystem, range_bits: u32) -> u32 {
     let bits = usize::try_from(range_bits).unwrap_or(usize::MAX / 4);

@@ -20,3 +20,7 @@ tpt-axiom-core = { workspace = true }
 tpt-axiom-ir = { workspace = true }
 tpt-axiom-macros = { workspace = true }
 tpt-axiom-zk = { workspace = true }
+
+# docs.rs builds with every feature so all doc examples render.
+[package.metadata.docs.rs]
+all-features = true
