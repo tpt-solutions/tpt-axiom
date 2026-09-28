@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   RISC-V toolchain (Linux/macOS-only) are available.
 - Phase 4: criterion benchmark suites with matching scenario IDs across
   backends (circuit size, keygen, prove, verify for `prove_balance_transfer`).
+- AI Foundation (Probabilistic Type System): `tpt-axiom-core::intelligence`
+  with `Probability`, `Confidence`, `Bernoulli`, `Categorical<T>`,
+  `Uncertain<T>`, `Score<T>`, `Decision<T>` (first-class abstention),
+  `Evidence<T>`, and `Provenance`; opt-in `serde` serialisation; all exposed
+  through the `tpt-axiom` prelude.
 - Phase 0: Cargo workspace scaffolding for `tpt-axiom-core`, `tpt-axiom-ir`,
   `tpt-axiom-macros`, `tpt-axiom-zk`, `tpt-axiom-backend-halo2`, `tpt-axiom-backend-arkworks`,
   `tpt-axiom-backend-sp1`, `tpt-axiom-cli`, and the `tpt-axiom` umbrella crate.

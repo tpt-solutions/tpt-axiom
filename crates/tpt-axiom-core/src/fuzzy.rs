@@ -26,6 +26,7 @@ use num_traits::{Float, FromPrimitive};
 /// yields. The same rules are what Phase 3's formal-verification bridge audits
 /// against `tpt-telos`.
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Fuzzy<T> {
     mean: T,
     variance: T,

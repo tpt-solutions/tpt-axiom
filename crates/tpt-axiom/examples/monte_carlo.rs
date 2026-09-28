@@ -7,6 +7,15 @@
 //! cargo run -p tpt-axiom --example monte_carlo
 //! ```
 
+// Deterministic RNG plumbing converts counters to `f64` and defines items
+// after the doc-level statements; both are fine in example land.
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::items_after_statements)]
+// The simulation accumulates with plain `+`/`*` on purpose: it mirrors the
+// arithmetic `Fuzzy<T>` propagates, rather than optimized `mul_add` forms.
+#![allow(clippy::suboptimal_flops)]
+#![allow(clippy::uninlined_format_args)]
+
 use tpt_axiom::prelude::*;
 
 /// Deterministic splitmix64 `(0, 1)` uniform generator (hermetic examples).

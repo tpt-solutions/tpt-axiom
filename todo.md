@@ -82,17 +82,17 @@ License: dual **MIT OR Apache-2.0**. Author: **TPT Solutions**.
 ## AI & Probabilistic Intelligence Foundation
 
 ### Probabilistic Type System
-- [ ] Define a first-class `Probability` type with validated [0,1] semantics.
-- [ ] Define `Confidence` as a distinct semantic type from probability.
-- [ ] Define `Distribution<T>` as a generic probabilistic value.
-- [ ] Define `Uncertain<T>` for values with explicitly represented uncertainty.
-- [ ] Define `Categorical<T>` for finite outcome distributions.
-- [ ] Define `Bernoulli` and other fundamental distributions.
-- [ ] Define `Score<T>` for probabilistic/ordinal scoring outputs.
-- [ ] Define `Decision<T>` for typed probabilistic decisions.
-- [ ] Define `Evidence<T>` for observations supporting probabilistic values.
-- [ ] Define provenance metadata for probabilistic results.
-- [ ] Ensure all core types are strongly typed, composable, serialisable and backend-independent.
+- [x] Define a first-class `Probability` type with validated [0,1] semantics — `tpt-axiom-core::intelligence`: fallible `new` / panicking `new_unchecked`, `complement`, weighted `pooled`, no implicit lossy arithmetic.
+- [x] Define `Confidence` as a distinct semantic type from probability — same range, separate type; crossing requires the explicit `into_probability()` so the semantic leap is visible at the call site.
+- [x] Define `Distribution<T>` as a generic probabilistic value — the Phase 1 `tpt-axiom-core::Distribution` (Gaussian/constant) already provides this.
+- [x] Define `Uncertain<T>` for values with explicitly represented uncertainty — `Certain(T)` / `Estimated(Fuzzy<T>)`; uncertainty is preserved through `map` and only dropped by the explicit `point_estimate()`.
+- [x] Define `Categorical<T>` for finite outcome distributions — weight-normalizing construction, `probability_of`, `most_likely`, `entropy_bits`, sampling.
+- [x] Define `Bernoulli` and other fundamental distributions — `Bernoulli` (likelihood, odds, sampling) here; further families ride the existing `Distribution<T>` enum as needed.
+- [x] Define `Score<T>` for probabilistic/ordinal scoring outputs — value + `Confidence` pairs.
+- [x] Define `Decision<T>` for typed probabilistic decisions — `Commit { value, confidence }` / `Abstain { reason }`, with `Decision::from_score(score, threshold)` as the explicit policy conversion (abstention is first-class).
+- [x] Define `Evidence<T>` for observations supporting probabilistic values — likelihood-weighted observations with multiplicative `combine`.
+- [x] Define provenance metadata for probabilistic results — `Provenance` (origin, timestamp, revision), carried on `Evidence`, vendor- and backend-independent.
+- [x] Ensure all core types are strongly typed, composable, serialisable and backend-independent — no crypto/AI-vendor dependencies; opt-in `serde` feature (derive) on `tpt-axiom-core` serialises every intelligence type; tested with and without the feature.
 
 ### Uncertainty Operations
 - [ ] Implement probability validation and normalisation.

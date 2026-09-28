@@ -15,5 +15,12 @@ categories = ["mathematics", "science", "no-std"]
 [lints]
 workspace = true
 
+[features]
+default = []
+# Serialisable probabilistic values and decisions (opt-in: keeps the core
+# dependency-free without it).
+serde = ["dep:serde"]
+
 [dependencies]
 num-traits = { version = "0.2", default-features = false, features = ["std"] }
+serde = { version = "1", default-features = false, features = ["alloc", "derive"], optional = true }

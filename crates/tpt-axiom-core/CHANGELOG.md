@@ -6,6 +6,17 @@ and this crate adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `intelligence` module: the probabilistic type system for AI/decision
+  workloads — `Probability` (validated [0,1]), `Confidence` (semantically
+  distinct, explicit conversion), `Bernoulli`, `Categorical<T>` (normalized,
+  with entropy/sampling), `Uncertain<T>` (preserve-until-discarded),
+  `Score<T>`, `Decision<T>` (first-class abstention + explicit policy
+  conversion), `Evidence<T>` (multiplicative combination), and `Provenance`
+  metadata. All re-exported through the `tpt-axiom` prelude.
+- Opt-in `serde` feature serialising every intelligence type and `Fuzzy<T>` itself.
+
 ### Changed
 
 - Crate renamed from `axiom-core` to `tpt-axiom-core`.

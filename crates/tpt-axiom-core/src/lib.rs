@@ -27,12 +27,20 @@
 #![warn(missing_docs)]
 #![deny(rust_2018_idioms)]
 
+extern crate alloc;
+
 mod distribution;
 mod fuzzy;
+mod intelligence;
 mod quants;
 
 pub use crate::distribution::Distribution;
 pub use crate::fuzzy::Fuzzy;
+pub use crate::intelligence::{
+    AbstentionReason, Bernoulli, Categorical, Confidence, Decision, EmptyCategorical, Evidence,
+    InvalidConfidence, InvalidEvidenceWeight, InvalidProbability, Probability, Provenance, Score,
+    Uncertain,
+};
 
 /// Statistical helpers available without importing sub-modules.
 pub mod stats {

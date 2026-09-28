@@ -9,6 +9,9 @@
 //! cargo run -p tpt-axiom-backend-halo2 --example backend_comparison
 //! ```
 
+// One-glance timing report; the criterion benches are the precise version.
+#![allow(clippy::cast_precision_loss)]
+
 use std::time::Instant;
 
 use tpt_axiom_backend_arkworks::ArkworksBackend;
@@ -40,8 +43,7 @@ where
 
     assert!(valid, "{name}: benchmark proof must verify");
     println!(
-        "{name:9} compile {:>8.1?} | keygen {:>8.1?} | prove {:>8.1?} | verify {:>8.1?}",
-        compile, keygen, prove, verify
+        "{name:9} compile {compile:>8.1?} | keygen {keygen:>8.1?} | prove {prove:>8.1?} | verify {verify:>8.1?}"
     );
 }
 

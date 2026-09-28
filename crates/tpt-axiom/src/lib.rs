@@ -48,7 +48,10 @@ pub use tpt_axiom_zk;
 
 /// The `tpt-axiom` prelude, matching the spec's `use tpt_axiom::prelude::*;`.
 pub mod prelude {
-    pub use tpt_axiom_core::{Distribution, Fuzzy, stats};
+    pub use tpt_axiom_core::{
+        AbstentionReason, Bernoulli, Categorical, Confidence, Decision, Distribution, Evidence,
+        Fuzzy, Probability, Provenance, Score, Uncertain, stats,
+    };
     pub use tpt_axiom_ir::{ConstraintSystem, ConstraintSystemBuilder, Scalar};
     pub use tpt_axiom_macros::zk_provable;
     pub use tpt_axiom_zk::{CircuitDefinition, ZkBackend};
