@@ -23,6 +23,7 @@ members = [
     "crates/tpt-axiom-backend-halo2",
     "crates/tpt-axiom-backend-arkworks",
     "crates/tpt-axiom-backend-sp1",
+    "crates/tpt-axiom-interop",
     "crates/tpt-axiom-cli",
     "crates/tpt-axiom",
 ]
@@ -58,6 +59,8 @@ tpt-axiom-backend-halo2 = { version = "0.1.0", path = "crates/tpt-axiom-backend-
 tpt-axiom-backend-arkworks = { version = "0.1.0", path = "crates/tpt-axiom-backend-arkworks" }
 tpt-axiom-backend-sp1 = { version = "0.1.0", path = "crates/tpt-axiom-backend-sp1" }
 
+tpt-axiom-interop = { version = "0.1.0", path = "crates/tpt-axiom-interop" }
+
 num-traits = "0.2"
 syn = { version = "2", features = ["full", "extra-traits", "visit"] }
 quote = "1"
@@ -79,6 +82,7 @@ ark-serialize = "0.5"
 ark-std = "0.5"
 ark-bls12-381 = "0.5"
 criterion = "0.5"
+tpt-augur-std = "0.1"
 
 [profile.release]
 lto = "thin"

@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   RISC-V toolchain (Linux/macOS-only) are available.
 - Phase 4: criterion benchmark suites with matching scenario IDs across
   backends (circuit size, keygen, prove, verify for `prove_balance_transfer`).
+- AI Foundation (Interoperability): new `tpt-axiom-interop` crate converting
+  `tpt-augur`'s `Dist` family to Axiom uncertainty types (exact closed-form
+  moment matching, validated, round-trippable for `Normal`) and defining the
+  `InferenceSample` boundary contract for the TPT inference runtimes
+  (`tpt-gpu`/`tpt-local-ai`/`tpt-spark`, pending their crates.io debut).
 - AI Foundation (Probabilistic Type System): `tpt-axiom-core::intelligence`
   with `Probability`, `Confidence`, `Bernoulli`, `Categorical<T>`,
   `Uncertain<T>`, `Score<T>`, `Decision<T>` (first-class abstention),

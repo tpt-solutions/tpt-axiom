@@ -130,8 +130,8 @@ License: dual **MIT OR Apache-2.0**. Author: **TPT Solutions**.
 
 ### Interoperability
 - [x] Define a stable serialisation format for probabilistic values and decisions — opt-in `serde` with the default representations pinned as wire-format v1 by roundtrip tests (`tests/properties.rs::serde_roundtrips_pin_the_v1_wire_format`).
-- [ ] Define conversion interfaces for Augur — **blocked on the Augur interface spec** (types/schema to convert to/from).
-- [ ] Define conversion interfaces for TPT inference runtimes — **blocked on the runtime interface spec**.
+- [x] Define conversion interfaces for Augur — `tpt-augur` is public (`tpt-solutions/tpt-augur`) and `tpt-augur-std 0.1.0` is on crates.io; `tpt-axiom-interop::augur` converts its `Dist` family into Axiom types via exact closed-form moment matching (information-preserving for `Normal`), with parameter validation and the exact `Normal` inverse.
+- [x] Define conversion interfaces for TPT inference runtimes — `tpt-axiom-interop::inference` fixes the contract (`InferenceSample`: sampled value + log-space weight → `Evidence`/`Score`); the runtimes (`tpt-gpu`, `tpt-local-ai`, `tpt-spark`) are not on crates.io yet, so their feature-gated `From` impls land there when they publish.
 - [ ] Define interfaces for external AI/decision engines — the seam exists (`Provenance::origin`, vendor-neutral metadata types); concrete conversion traits wait on the target systems above.
 - [x] Ensure Axiom does not depend on any specific AI vendor, model, inference engine or network service — by construction: the foundation is pure `no_std` math and metadata with zero vendor/network dependencies.
 - [x] Add comprehensive property-based tests for probabilistic invariants — `crates/tpt-axiom-core/tests/properties.rs` (proptest: complement partitioning, noisy-OR/conjunct domination, categorical normalization + entropy bounds, evidence-weight closure, policy/threshold agreement, Bayesian renormalization).
