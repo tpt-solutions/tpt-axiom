@@ -172,7 +172,7 @@ produces the smallest verifiable objects with canonical key serialization.
 | `tpt-axiom-backend-arkworks`  | arkworks backend adapter (Phase 4)                                  |
 | `tpt-axiom-backend-sp1`       | sp1 backend adapter (Phase 4)                                       |
 | `tpt-axiom-cli`               | Build-time driver (key generation, verification)                    |
-| `tpt-axiom-interop`           | Conversions to/from `tpt-augur` + inference-runtime boundary        |
+| `tpt-axiom-interop`           | Augur/inference conversions + external-engine interfaces            |
 | `tpt-axiom`                   | Umbrella crate re-exporting the public `prelude`                    |
 
 ## Contributing

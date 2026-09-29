@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   moment matching, validated, round-trippable for `Normal`) and defining the
   `InferenceSample` boundary contract for the TPT inference runtimes
   (`tpt-gpu`/`tpt-local-ai`/`tpt-spark`, pending their crates.io debut).
+- AI Foundation (Interoperability): vendor-neutral interfaces for external
+  AI/decision engines — `tpt-axiom-interop::engine`'s `DecisionEngine`
+  trait plus validated boundary types (`EngineOutput`, `EngineVerdict`,
+  `MultiLabelOutput`) that turn raw engine scores (probabilities or
+  logits, stable temperature softmax) into Axiom decisions under
+  caller-owned thresholds, with provenance; no vendor/SDK/network
+  dependencies anywhere.
 - AI Foundation (Probabilistic Type System): `tpt-axiom-core::intelligence`
   with `Probability`, `Confidence`, `Bernoulli`, `Categorical<T>`,
   `Uncertain<T>`, `Score<T>`, `Decision<T>` (first-class abstention),

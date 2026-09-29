@@ -13,6 +13,14 @@ and the rest of the TPT AI ecosystem.
   value plus a log-space weight converts into weighted `Evidence` or a
   confidence-carrying `Score`. The runtimes are not published yet; their
   `From` impls will be feature-gated additions here.
+- **`engine`** — vendor-neutral interfaces for *external* AI and decision
+  engines (LLM judges, cloud classifiers, ONNX models, rules engines).
+  An engine implements one trait — `DecisionEngine` — and owns all I/O;
+  the boundary types (`EngineOutput`, `EngineVerdict`, `MultiLabelOutput`)
+  validate and normalize its raw scores (probabilities or logits) into
+  Axiom decision types under caller-owned threshold policies, with
+  provenance attached. Axiom itself depends on no vendor, SDK, or
+  network service.
 
 Ecosystem coupling is deliberately isolated in this crate — `tpt-axiom-core`
 never depends on it.

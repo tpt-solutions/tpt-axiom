@@ -14,6 +14,12 @@
 //!   Those runtimes are not published yet; this module fixes the interface
 //!   contract (sampled value + log-space weight → `Evidence`/`Score`) that
 //!   their future feature-gated `From` impls will target.
+//! * [`engine`] — vendor-neutral interfaces for *external* AI and decision
+//!   engines: one trait ([`engine::DecisionEngine`]) any LLM judge,
+//!   classifier, or rules engine implements (no I/O, no vendor SDKs here),
+//!   plus boundary types that validate and normalize raw engine scores
+//!   (probabilities or logits) into `Categorical`/`Decision`/multi-label
+//!   forms under caller-owned threshold policies, with provenance attached.
 //!
 //! The crate is deliberately separate from `tpt-axiom-core`: ecosystem
 //! coupling must never be a transitive dependency of the core types.
@@ -22,6 +28,7 @@
 #![warn(missing_docs)]
 
 pub mod augur;
+pub mod engine;
 pub mod inference;
 
 pub use tpt_axiom_core;
