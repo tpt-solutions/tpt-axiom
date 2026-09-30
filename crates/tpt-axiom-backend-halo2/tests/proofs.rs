@@ -127,15 +127,45 @@ fn mock_prover_rejects_out_of_bounds_secret() {
 
 #[test]
 fn mock_prover_rejects_extreme_secret() {
-    // amount = i64::MIN makes `sender - amount` wrap in the i64 node
-    // evaluation; the wrapped value disagrees with the range-check chain and
-    // must be rejected rather than silently accepted.
+    // amount = i64::MIN is not a `u64` at all: exact `i128` witness checking
+    // rejects it up front with the declared-type diagnosis (and the circuit's
+    // own range check would still reject it, as `mock_check` shows).
     let circuit = balance_transfer([50, 20], [i64::MIN]);
     assert!(mock_check(&circuit).is_err(), "wrapping witness must fail");
-    assert_eq!(
+    assert!(matches!(
         checked(&ProveBalanceTransfer.build(), vec![50, 20], vec![i64::MIN]),
-        WitnessError::Violated { index: 0 }
-    );
+        WitnessError::InputOutOfRange { .. }
+    ));
+}
+
+#[test]
+fn wrapping_intermediate_is_rejected_at_prove_time() {
+    // `sender - amount` under exact arithmetic spans up to 2^64 - 1 — the
+    // exact last value a 64-bit range check admits — so the widest honest
+    // signed transfer proves fine.
+    let mut b = ConstraintSystemBuilder::new("signed_transfer");
+    let sender = b.public_input_typed("sender", tpt_axiom_ir::IntType::I64);
+    let amount = b.secret_input_typed("amount", tpt_axiom_ir::IntType::I64);
+    let surplus = b.sub(sender, amount);
+    b.constrain_non_negative(surplus);
+    compiled(&b.build())
+        .with_witness(vec![i64::MAX], vec![i64::MIN])
+        .expect("2^64 - 1 is the last admitted NonNegative value");
+    // A product blows past the range-check width while staying
+    // non-negative; the witness check rejects it with the precise range
+    // diagnosis instead of an opaque synthesis failure.
+    let mut b = ConstraintSystemBuilder::new("wide_product");
+    let x = b.public_input_typed("x", tpt_axiom_ir::IntType::I64);
+    let y = b.secret_input_typed("y", tpt_axiom_ir::IntType::I64);
+    let p = b.mul(x, y);
+    b.constrain_non_negative(p);
+    let err = compiled(&b.build())
+        .with_witness(vec![1i64 << 40], vec![1i64 << 30])
+        .expect_err("2^70 exceeds the 64-bit range check");
+    assert!(matches!(
+        err,
+        WitnessError::NonNegativeOutOfRange { .. }
+    ));
 }
 
 #[test]
@@ -305,5 +335,45 @@ fn violated_witness_produces_diagnostic() {
     assert!(
         rendered.contains("constraint"),
         "unexpected message: {rendered}"
+    );
+}
+
+#[test]
+fn verify_with_wrong_public_count_is_a_clean_false() {
+    let backend = Halo2Backend;
+    let ir = ProveBalanceTransfer.build();
+    let circuit = backend.compile(&ir).expect("compile");
+    let (pk, vk) = backend.generate_keys(&ir, &[]).expect("keys");
+    let proof = backend.prove(&circuit, &pk, &[50, 20], &[30]).expect("prove");
+    // One public too few and one too many are both false claims, not
+    // backend errors.
+    assert!(
+        !backend.verify(&vk, &[50], &proof).expect("clean false"),
+        "one public too few must not verify"
+    );
+    assert!(
+        !backend.verify(&vk, &[50, 20, 7], &proof).expect("clean false"),
+        "one public too many must not verify"
+    );
+}
+
+#[test]
+fn overflow_bound_circuit_is_rejected_at_compile() {
+    // Four chained 64-bit muls reach 256 static bits — past any proving
+    // field. Key generation must refuse it instead of emitting a key for a
+    // circuit whose field semantics are unfaithful.
+    let mut b = ConstraintSystemBuilder::new("too_wide");
+    let a = b.public_input("a");
+    let c = b.secret_input("c");
+    let m1 = b.mul(a, c);
+    let m2 = b.mul(m1, c);
+    let m3 = b.mul(m2, c);
+    b.constrain_non_negative(m3);
+    let ir = b.build();
+    let backend = Halo2Backend;
+    let err = backend.generate_keys(&ir, &[]).unwrap_err();
+    assert!(
+        matches!(err, tpt_axiom_backend_halo2::Halo2Error::InvalidCircuit(_)),
+        "unexpected error: {err}"
     );
 }

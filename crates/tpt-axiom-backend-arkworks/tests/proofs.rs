@@ -311,3 +311,57 @@ fn witness_arity_is_checked() {
         Err(WitnessError::Arity { kind: "secret", .. })
     ));
 }
+
+#[test]
+fn inputs_outside_declared_types_are_diagnosed() {
+    // 300 fits the field but not a `u8`: the pre-prove witness check names
+    // the offending input instead of leaving synthesis to fail opaquely.
+    let err = compiled(&NarrowRange.build())
+        .with_witness(vec![300], vec![1])
+        .expect_err("300 is not a u8");
+    assert!(matches!(
+        err,
+        WitnessError::InputOutOfRange { .. }
+    ));
+    compiled(&NarrowRange.build())
+        .with_witness(vec![200], vec![1])
+        .expect("200 is a valid u8");
+}
+
+#[test]
+fn verify_with_wrong_public_count_is_a_clean_false() {
+    let backend = ArkworksBackend;
+    let ir = ProveBalanceTransfer.build();
+    let circuit = backend.compile(&ir).expect("compile");
+    let (pk, vk) = backend.generate_keys(&ir, &[]).expect("keys");
+    let proof = backend.prove(&circuit, &pk, &[50, 20], &[30]).expect("prove");
+    assert!(
+        !backend.verify(&vk, &[50], &proof).expect("clean false"),
+        "one public too few must not verify"
+    );
+    assert!(
+        !backend.verify(&vk, &[50, 20, 7], &proof).expect("clean false"),
+        "one public too many must not verify"
+    );
+}
+
+#[test]
+fn overflow_bound_circuit_is_rejected_at_keygen() {
+    // Four chained 64-bit muls reach 256 static bits — past any proving
+    // field. Groth16 setup must refuse it instead of emitting keys for a
+    // circuit whose field semantics are unfaithful.
+    let mut b = ConstraintSystemBuilder::new("too_wide");
+    let a = b.public_input("a");
+    let c = b.secret_input("c");
+    let m1 = b.mul(a, c);
+    let m2 = b.mul(m1, c);
+    let m3 = b.mul(m2, c);
+    b.constrain_non_negative(m3);
+    let ir = b.build();
+    let backend = ArkworksBackend;
+    let err = backend.generate_keys(&ir, &[]).unwrap_err();
+    assert!(
+        matches!(err, ArkworksError::InvalidCircuit(_)),
+        "unexpected error: {err}"
+    );
+}

@@ -18,6 +18,16 @@
 //! formula still match the reference identity", which must be re-transcribed
 //! here if `fuzzy.rs`'s formulas ever change.
 //!
+//! **Addition and subtraction are deliberately not covered.** Their
+//! variances (`var_a + var_b` for both `a + b` and `a - b`) are a single
+//! two-term sum; a "transcription" of them is the formula itself, so any
+//! check comparing transcription against reference would be tautological —
+//! it could only ever pass and would verify nothing. (Earlier revisions of
+//! this module shipped such checks; they were removed as
+//! verification-theater, not because the formulas are wrong.) The Monte
+//! Carlo cross-checks in `tpt-axiom-core`'s test suite are the empirical
+//! backstop for those two operations.
+//!
 //! Symbols used throughout: `mean_a`, `var_a`, `mean_b`, `var_b` are the two
 //! operands' means/variances; `k` is a certain (zero-variance) scalar.
 
@@ -36,29 +46,6 @@ pub const SCALE_K: usize = 4;
 
 fn var(id: usize) -> Polynomial {
     Polynomial::variable(id)
-}
-
-/// `Fuzzy::add` (`fuzzy.rs:152-158`): `(a + b).variance = a.variance + b.variance`.
-///
-/// # Errors
-///
-/// Returns [`Mismatch`] if the transcribed and reference formulas disagree.
-pub fn check_add_variance() -> Result<(), Mismatch> {
-    let implemented = var(VAR_A) + var(VAR_B);
-    let reference = var(VAR_A) + var(VAR_B);
-    expect_equal(implemented, reference)
-}
-
-/// `Fuzzy::sub` (`fuzzy.rs:196-201`): `(a - b).variance = a.variance + b.variance`
-/// (variance still *adds* under subtraction — errors compound either way).
-///
-/// # Errors
-///
-/// Returns [`Mismatch`] if the transcribed and reference formulas disagree.
-pub fn check_sub_variance() -> Result<(), Mismatch> {
-    let implemented = var(VAR_A) + var(VAR_B);
-    let reference = var(VAR_A) + var(VAR_B);
-    expect_equal(implemented, reference)
 }
 
 /// `Fuzzy * scalar` (`fuzzy.rs:264-269`): `(k * a).variance = k^2 * a.variance`.
@@ -120,16 +107,6 @@ pub fn check_div_variance() -> Result<(), Mismatch> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn add_variance_matches_reference() {
-        assert!(check_add_variance().is_ok());
-    }
-
-    #[test]
-    fn sub_variance_matches_reference() {
-        assert!(check_sub_variance().is_ok());
-    }
 
     #[test]
     fn scale_variance_matches_reference() {

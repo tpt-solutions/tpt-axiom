@@ -47,13 +47,16 @@ impl Sp1Backend {
 }
 
 /// Failures of the SP1 backend.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Sp1Error {
     /// The SP1 proving stack is not available in this build.
     ///
     /// SP1's SDK and RISC-V toolchain are Linux/macOS-only today; see the
     /// crate documentation for the planned adapter design.
     Unavailable,
+    /// The IR circuit is not well-formed (the same bar the real backends
+    /// enforce at compile time).
+    InvalidCircuit(String),
 }
 
 impl fmt::Display for Sp1Error {
@@ -65,6 +68,7 @@ impl fmt::Display for Sp1Error {
                  toolchain are not distributable on this platform (Linux/macOS only); \
                  see tpt-axiom-backend-sp1 documentation"
             ),
+            Self::InvalidCircuit(msg) => write!(f, "invalid circuit: {msg}"),
         }
     }
 }
@@ -100,6 +104,11 @@ impl tpt_axiom_zk::ZkBackend for Sp1Backend {
     }
 
     fn compile(&self, ir: &tpt_axiom_ir::ConstraintSystem) -> Result<Self::Circuit, Self::Error> {
+        // The same well-formedness bar as the real backends: an IR whose
+        // structure or static bit widths are unfaithful over a field is
+        // rejected here too, so swapping backends never changes the verdict.
+        ir.validate()
+            .map_err(|e| Sp1Error::InvalidCircuit(e.to_string()))?;
         // Compilation into an SP1 program is what the deferred lowering will
         // provide; until then the IR itself is retained as the circuit handle.
         Ok(Sp1Circuit(alloc::sync::Arc::new(ir.clone())))

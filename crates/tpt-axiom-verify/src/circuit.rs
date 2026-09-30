@@ -90,6 +90,11 @@ pub fn check_comparison(
 /// variables, indexed by [`ExprId`] (same traversal order as
 /// [`normalize_all`], but on concrete integers instead of symbols).
 ///
+/// Arithmetic runs in exact `i128` internally, so no intermediate can panic
+/// in debug builds; results narrow back to the IR's `i64` scalar model with
+/// two's-complement truncation, matching the release-mode Rust original the
+/// circuit was generated from.
+///
 /// Used to cross-check the IR against the kept-original Rust function on
 /// sampled inputs (see the crate-level integration tests). `inputs` need not
 /// cover every named variable: a `#[zk_provable]` output slot (e.g.
@@ -99,16 +104,16 @@ pub fn check_comparison(
 /// other side of that `Equal` constraint instead.
 #[must_use]
 pub fn evaluate(cs: &ConstraintSystem, inputs: &[(&str, Scalar)]) -> Vec<Scalar> {
-    let lookup = |name: &str| -> Scalar {
+    let lookup = |name: &str| -> i128 {
         inputs
             .iter()
             .find(|(n, _)| *n == name)
-            .map_or(0, |(_, v)| *v)
+            .map_or(0, |(_, v)| i128::from(*v))
     };
-    let mut table: Vec<Scalar> = Vec::with_capacity(cs.exprs.len());
+    let mut table: Vec<i128> = Vec::with_capacity(cs.exprs.len());
     for expr in &cs.exprs {
         let v = match *expr {
-            Expr::Const(c) => c,
+            Expr::Const(c) => i128::from(c),
             Expr::Var(id) => lookup(&cs.variables[id].name),
             Expr::Add(l, r) => table[l] + table[r],
             Expr::Sub(l, r) => table[l] - table[r],
@@ -117,5 +122,6 @@ pub fn evaluate(cs: &ConstraintSystem, inputs: &[(&str, Scalar)]) -> Vec<Scalar>
         };
         table.push(v);
     }
-    table
+    #[allow(clippy::cast_possible_truncation)] // documented scalar-model narrowing
+    table.into_iter().map(|v| v as Scalar).collect()
 }

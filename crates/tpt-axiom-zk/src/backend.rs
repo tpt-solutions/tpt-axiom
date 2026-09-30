@@ -2,7 +2,7 @@
 
 use core::fmt::Display;
 
-use tpt_axiom_ir::{ConstraintSystem, R1CS, Scalar};
+use tpt_axiom_ir::{CircuitError, ConstraintSystem, R1CS, Scalar};
 
 /// A zero-knowledge proving backend (halo2, arkworks, sp1, …).
 ///
@@ -34,9 +34,13 @@ pub trait ZkBackend {
     /// Backend-specific failure while lowering the IR.
     fn compile(&self, ir: &ConstraintSystem) -> Result<Self::Circuit, Self::Error>;
 
-    /// Lower the IR into the reference R1CS form (used for conformance and the
-    /// `tpt-telos` equivalence bridge).
-    fn lower_r1cs(&self, ir: &ConstraintSystem) -> R1CS {
+    /// Lower the IR into the reference R1CS form (used for conformance and
+    /// equivalence checking).
+    ///
+    /// # Errors
+    /// [`CircuitError`] when the IR is not well-formed (see
+    /// [`ConstraintSystem::validate`]).
+    fn lower_r1cs(&self, ir: &ConstraintSystem) -> Result<R1CS, CircuitError> {
         tpt_axiom_ir::r1cs::lower_r1cs(ir)
     }
 

@@ -14,7 +14,7 @@
 //! `[0, 2^range_bits)`. A prover cannot substitute a field element
 //! outside the integer range the circuit's semantics assume.
 
-use ff::Field;
+use ff::{Field, PrimeField};
 use halo2_proofs::circuit::{AssignedCell, Cell, Layouter, Region, SimpleFloorPlanner, Value};
 use halo2_proofs::pasta::Fp;
 use halo2_proofs::plonk::{
@@ -23,7 +23,7 @@ use halo2_proofs::plonk::{
 };
 use halo2_proofs::poly::Rotation;
 use tpt_axiom_ir::{Constraint, ConstraintSystem, Expr, IntType};
-use tpt_axiom_zk::witness::{WitnessError, check as check_witness};
+use tpt_axiom_zk::witness::WitnessError;
 
 /// Bit width used to range-check named inputs and `NonNegative` constraints.
 pub(crate) const DEFAULT_RANGE_BITS: u32 = 64;
@@ -32,7 +32,8 @@ pub(crate) const DEFAULT_RANGE_BITS: u32 = 64;
 /// slice.
 ///
 /// Encoding: `params[0]` = range bit width (0 or absent means the default of
-/// 64, max 255), `params[1]` = log2 of the row bound `k` (0 or absent means
+/// 64; values above 64 are capped at 64, the width of the `u64` running-sum
+/// chain), `params[1]` = log2 of the row bound `k` (0 or absent means
 /// auto-sized from the IR). An empty slice means all defaults.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Halo2Params {
@@ -181,9 +182,11 @@ impl Halo2Circuit {
     ///
     /// # Errors
     /// Fails when the slice lengths disagree with the circuit's declared
-    /// inputs.
+    /// inputs, an input lies outside its declared integer type, a
+    /// `NonNegative` value falls outside `[0, 2^range_bits)`, or any
+    /// constraint is violated under exact `i128` evaluation.
     pub fn with_witness(&self, public: Vec<i64>, secret: Vec<i64>) -> Result<Self, WitnessError> {
-        check_witness(&self.ir, &public, &secret)?;
+        tpt_axiom_zk::witness::check_with_range(&self.ir, &public, &secret, self.range_bits)?;
         Ok(Self {
             ir: self.ir.clone(),
             range_bits: self.range_bits,
@@ -354,12 +357,14 @@ impl Circuit<Fp> for Halo2Circuit {
 
 /// The value of every expression node, when a witness is available.
 ///
-/// Node values are computed with wrapping `i64` arithmetic. An overflowed
-/// computation therefore disagrees with the field-level gates and makes
-/// proving fail, rather than silently wrapping like the release-mode Rust
-/// original would.
+/// Values come from [`tpt_axiom_zk::witness::evaluate_nodes`]: exact `i128`
+/// arithmetic. An overflowing computation therefore disagrees with the
+/// field-level gates and makes proving fail, rather than silently wrapping
+/// like the release-mode Rust original would; witnesses handed through
+/// [`Halo2Circuit::with_witness`] were already rejected up front with a
+/// precise diagnosis.
 struct NodeValues {
-    values: Vec<Option<i64>>,
+    values: Vec<Option<i128>>,
 }
 
 impl NodeValues {
@@ -368,49 +373,13 @@ impl NodeValues {
         public: Option<&Vec<i64>>,
         secret: Option<&Vec<i64>>,
     ) -> Self {
-        let mut values: Vec<Option<i64>> = Vec::with_capacity(ir.exprs.len());
-        for expr in &ir.exprs {
-            let value = match expr {
-                Expr::Const(v) => Some(*v),
-                Expr::Var(var) => Self::variable_value(ir, *var, public, secret),
-                Expr::Add(l, r) => Self::binary(&values, *l, *r, i64::wrapping_add),
-                Expr::Sub(l, r) => Self::binary(&values, *l, *r, i64::wrapping_sub),
-                Expr::Mul(l, r) => Self::binary(&values, *l, *r, i64::wrapping_mul),
-                Expr::Neg(n) => values.get(*n).copied().flatten().map(i64::wrapping_neg),
-            };
-            values.push(value);
+        Self {
+            values: tpt_axiom_zk::witness::evaluate_nodes(
+                ir,
+                public.map(Vec::as_slice),
+                secret.map(Vec::as_slice),
+            ),
         }
-        Self { values }
-    }
-
-    fn variable_value(
-        ir: &ConstraintSystem,
-        var: usize,
-        public: Option<&Vec<i64>>,
-        secret: Option<&Vec<i64>>,
-    ) -> Option<i64> {
-        let public_index = ir
-            .public_inputs
-            .iter()
-            .position(|&p| matches!(ir.exprs.get(p), Some(Expr::Var(pv)) if *pv == var));
-        if let (Some(i), Some(public)) = (public_index, public) {
-            return public.get(i).copied();
-        }
-        let secret_index = ir
-            .secret_inputs
-            .iter()
-            .position(|&s| matches!(ir.exprs.get(s), Some(Expr::Var(sv)) if *sv == var));
-        match (secret_index, secret) {
-            (Some(i), Some(secret)) => secret.get(i).copied(),
-            _ => None,
-        }
-    }
-
-    fn binary(values: &[Option<i64>], l: usize, r: usize, op: fn(i64, i64) -> i64) -> Option<i64> {
-        Some(op(
-            values.get(l).copied().flatten()?,
-            values.get(r).copied().flatten()?,
-        ))
     }
 
     fn get(&self, id: usize) -> Value<Fp> {
@@ -418,10 +387,10 @@ impl NodeValues {
             .get(id)
             .copied()
             .flatten()
-            .map_or(Value::unknown(), |v| Value::known(encode_scalar(v)))
+            .map_or(Value::unknown(), |v| Value::known(encode_i128(v)))
     }
 
-    fn int(&self, id: usize) -> Option<i64> {
+    fn int(&self, id: usize) -> Option<i128> {
         self.values.get(id).copied().flatten()
     }
 }
@@ -431,15 +400,24 @@ impl NodeValues {
 #[allow(clippy::missing_const_for_fn)] // Fp::from is not const
 #[must_use]
 pub fn encode_scalar(value: i64) -> Fp {
-    let magnitude = Fp::from(value.unsigned_abs());
-    if value < 0 { -magnitude } else { magnitude }
+    encode_i128(i128::from(value))
 }
 
 /// Encodes an unsigned scalar into the Pallas base field.
 #[allow(clippy::missing_const_for_fn)] // Fp::from is not const
 #[must_use]
 pub fn encode_u64(value: u64) -> Fp {
-    Fp::from(value)
+    encode_i128(i128::from(value))
+}
+
+/// Encodes a signed `i128` scalar into the Pallas base field (negatives as
+/// field negation). The Pallas base field exceeds 254 bits, so every `i128`
+/// value has a distinct image — no wraparound is possible.
+#[allow(clippy::missing_const_for_fn)] // Fp::from_u128 is not const
+#[must_use]
+pub fn encode_i128(value: i128) -> Fp {
+    let magnitude = Fp::from_u128(value.unsigned_abs());
+    if value < 0 { -magnitude } else { magnitude }
 }
 
 impl Halo2Circuit {
@@ -449,14 +427,21 @@ impl Halo2Circuit {
         let values = NodeValues::compute(&self.ir, self.public.as_ref(), self.secret.as_ref());
         let [a, b, c] = config.advice;
 
+        // Instance row of each named public variable, precomputed once.
+        let mut instance_row_of_var: Vec<Option<usize>> =
+            vec![None; self.ir.variables.len()];
+        for (row, &p) in self.ir.public_inputs.iter().enumerate() {
+            if let Some(Expr::Var(v)) = self.ir.exprs.get(p) {
+                instance_row_of_var[*v] = Some(row);
+            }
+        }
+
         // A row per expression node; the node's value lands in column `c`.
         let mut cells: Vec<Option<AssignedCell<Fp, Fp>>> = vec![None; self.ir.exprs.len()];
         for (id, expr) in self.ir.exprs.iter().enumerate() {
             let cell = match expr {
                 Expr::Var(var) => {
-                    if let Some(instance_row) = self.ir.public_inputs.iter().position(
-                        |&p| matches!(self.ir.exprs.get(p), Some(Expr::Var(pv)) if pv == var),
-                    ) {
+                    if let Some(instance_row) = instance_row_of_var.get(*var).copied().flatten() {
                         let name = self
                             .ir
                             .variables
@@ -523,12 +508,7 @@ impl Halo2Circuit {
         let range_bits = usize::try_from(self.range_bits).unwrap_or(0);
         let [a, b, c] = config.advice;
         for (var_id, info) in self.ir.variables.iter().enumerate() {
-            let Some(expr_id) = self
-                .ir
-                .exprs
-                .iter()
-                .position(|e| matches!(e, Expr::Var(v) if *v == var_id))
-            else {
+            let Some(expr_id) = self.ir.var_expr_id(var_id) else {
                 continue;
             };
             self.range_check_input(
@@ -549,7 +529,10 @@ impl Halo2Circuit {
                 // Negative values deliberately wrap here: the resulting
                 // accumulator then disagrees with the node's cell and the
                 // copy constraint rejects the witness.
-                #[allow(clippy::cast_sign_loss)] // wrapping is the point
+                #[allow(
+                    clippy::cast_sign_loss, // wrapping is the point
+                    clippy::cast_possible_truncation // ...and so is truncation
+                )]
                 let checked = values.int(e).map(|v| v as u64);
                 let source = cells[e].as_ref();
                 self.range_check(
@@ -595,7 +578,7 @@ impl Halo2Circuit {
             let signed_offset = 1u64 << (bits - 1);
             let shifted = values
                 .int(expr_id)
-                .map(|v| u64::try_from(i128::from(v) + i128::from(signed_offset)).unwrap_or(0));
+                .map(|v| u64::try_from(v + i128::from(signed_offset)).unwrap_or(0));
             let shift_row = *next_row;
             region.assign_fixed(
                 || "signed offset",

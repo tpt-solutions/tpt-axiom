@@ -10,6 +10,7 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 
+use crate::circuit::CircuitError;
 use crate::{Constraint, ConstraintSystem, Expr, Scalar};
 
 /// A sparse linear combination `Σ cᵢ · witness[i]`.
@@ -86,13 +87,19 @@ fn const_gate(slot: usize, value: Scalar) -> R1csGate {
 /// constants are pinned to their value with a dedicated gate. The constant
 /// `witness[0]` is always `1`.
 ///
+/// # Errors
+/// Returns the IR's [`CircuitError`] if `ir` is not well-formed — every
+/// previously-panicking case (out-of-range expression references) is now a
+/// typed error. Well-formedness is exactly [`ConstraintSystem::validate`]'s
+/// structural rules.
+///
 /// # Panics
-/// Panics if the IR references an expression id that is out of range
-/// (cannot happen for systems built by
-/// [`ConstraintSystemBuilder`](crate::ConstraintSystemBuilder)).
+/// Only if the IR mutates between [`ConstraintSystem::validate`] and the
+/// lowering passes (not possible through the public API; every slot lookup
+/// follows a successful validation).
 #[allow(clippy::too_many_lines)] // one match arm per IR node kind
-#[must_use]
-pub fn lower_r1cs(ir: &ConstraintSystem) -> R1CS {
+pub fn lower_r1cs(ir: &ConstraintSystem) -> Result<R1CS, CircuitError> {
+    ir.validate()?;
     let mut gates = Vec::new();
     let mut assertions = Vec::new();
 
@@ -108,7 +115,7 @@ pub fn lower_r1cs(ir: &ConstraintSystem) -> R1CS {
         num_vars += 1;
     }
 
-    let slot = |id: usize| -> usize { expr_slots[id].expect("unreachable: every expr has a slot") };
+    let slot = |id: usize| -> usize { expr_slots[id].expect("validated: every expr has a slot") };
 
     for (id, e) in ir.exprs.iter().enumerate() {
         match e {
@@ -191,7 +198,7 @@ pub fn lower_r1cs(ir: &ConstraintSystem) -> R1CS {
         }
     }
 
-    R1CS {
+    Ok(R1CS {
         num_variables: num_vars,
         gates,
         assertions,
@@ -200,7 +207,7 @@ pub fn lower_r1cs(ir: &ConstraintSystem) -> R1CS {
         expr_slots,
         var_slots,
         names,
-    }
+    })
 }
 
 fn const1() -> Linear {
@@ -208,9 +215,19 @@ fn const1() -> Linear {
 }
 
 /// Evaluate a linear combination against a witness.
+///
+/// Products and sums are accumulated in `i128` (coefficients and witness
+/// values are `i64`, so individual products always fit); a genuinely
+/// overflowing sum saturates to `None`, which [`R1CS::evaluate`] reports as a
+/// failed gate rather than wrapping silently.
 #[must_use]
-pub fn evaluate_linear(lin: &Linear, witness: &[Scalar]) -> Scalar {
-    lin.iter().map(|&(i, c)| c * witness[i]).sum()
+pub fn evaluate_linear(lin: &Linear, witness: &[Scalar]) -> Option<i128> {
+    let mut total: i128 = 0;
+    for &(i, c) in lin {
+        let w = *witness.get(i)?;
+        total = total.checked_add(i128::from(c) * i128::from(w))?;
+    }
+    Some(total)
 }
 
 /// An evaluation error: either a quadratic gate failed or a post-quadratic
@@ -222,11 +239,11 @@ pub enum EvaluationError {
         /// Index of the failing gate in [`R1CS::gates`].
         index: usize,
         /// `Σ aᵢwᵢ` for the failing gate.
-        lhs: Scalar,
+        lhs: i128,
         /// `Σ bᵢwᵢ` for the failing gate.
-        rhs: Scalar,
+        rhs: i128,
         /// `Σ cᵢwᵢ` for the failing gate.
-        out: Scalar,
+        out: i128,
     },
     /// A non-negativity assertion failed for witness slot `slot`.
     NonNegativeFailed {
@@ -235,38 +252,59 @@ pub enum EvaluationError {
         /// The offending value.
         value: Scalar,
     },
+    /// The witness vector has the wrong length for this R1CS.
+    WitnessLength {
+        /// Length provided.
+        got: usize,
+        /// Length required ([`R1CS::num_variables`]).
+        expected: usize,
+    },
+    /// `witness[0]` is not the constant `1`.
+    ConstantSlot,
+    /// A gate's linear combination indexes past the witness vector, or its
+    /// evaluation overflowed `i128`.
+    Malformed,
 }
 
 impl R1CS {
     /// Check a full witness assignment (including `witness[0] == 1`).
     ///
+    /// Gate arithmetic runs in exact `i128`; a product or sum that overflows
+    /// even `i128` reports [`EvaluationError::GateFailed`] rather than
+    /// wrapping (valid witnesses of circuits within
+    /// [`MAX_FAITHFUL_BITS`](crate::circuit::MAX_FAITHFUL_BITS) never come
+    /// close).
+    ///
     /// # Errors
     /// Returns [`EvaluationError::GateFailed`] for the first failing quadratic
-    /// gate and [`EvaluationError::NonNegativeFailed`] for a violated
-    /// non-negativity assertion.
-    ///
-    /// # Panics
-    /// Panics if `witness` does not have exactly [`R1CS::num_variables`]
-    /// entries or `witness[0] != 1`.
+    /// gate, [`EvaluationError::NonNegativeFailed`] for a violated
+    /// non-negativity assertion, and the corresponding variant for a
+    /// malformed witness vector.
     pub fn evaluate(&self, witness: &[Scalar]) -> Result<(), EvaluationError> {
-        assert!(
-            witness.len() == self.num_variables,
-            "witness has {} values, expected {}",
-            witness.len(),
-            self.num_variables
-        );
-        assert_eq!(witness[0], 1, "witness[0] must equal the constant 1");
+        if witness.len() != self.num_variables {
+            return Err(EvaluationError::WitnessLength {
+                got: witness.len(),
+                expected: self.num_variables,
+            });
+        }
+        if witness[0] != 1 {
+            return Err(EvaluationError::ConstantSlot);
+        }
         for (index, gate) in self.gates.iter().enumerate() {
-            let a = evaluate_linear(&gate.a, witness);
-            let b = evaluate_linear(&gate.b, witness);
-            let c = evaluate_linear(&gate.c, witness);
-            if a * b != c {
-                return Err(EvaluationError::GateFailed {
-                    index,
-                    lhs: a,
-                    rhs: b,
-                    out: c,
-                });
+            let (Some(a), Some(b), Some(c)) = (
+                evaluate_linear(&gate.a, witness),
+                evaluate_linear(&gate.b, witness),
+                evaluate_linear(&gate.c, witness),
+            ) else {
+                return Err(EvaluationError::Malformed);
+            };
+            // A product that overflows i128 cannot equal a `c` that fit
+            // i128, so reporting GateFailed is exact, not an approximation.
+            let Some(product) = a.checked_mul(b) else {
+                return Err(EvaluationError::GateFailed { index, lhs: a, rhs: b, out: c });
+            };
+            if product != c {
+                return Err(EvaluationError::GateFailed { index, lhs: a, rhs: b, out: c });
             }
         }
         for &R1csAssertion::NonNegative(slot) in &self.assertions {
@@ -354,7 +392,7 @@ mod tests {
     #[test]
     fn lowers_and_satisfies() {
         let (ir, amount_expr) = balance_transfer_ir();
-        let r1cs = lower_r1cs(&ir);
+        let r1cs = lower_r1cs(&ir).unwrap();
         assert_eq!(r1cs.public_slots.len(), 2);
         assert_eq!(r1cs.secret_slots.len(), 1);
         assert_ne!(r1cs.gates.len(), 0);
@@ -371,7 +409,7 @@ mod tests {
     #[test]
     fn lowers_and_rejects_wrong_assignment() {
         let (ir, amount_expr) = balance_transfer_ir();
-        let r1cs = lower_r1cs(&ir);
+        let r1cs = lower_r1cs(&ir).unwrap();
         let mut witness = vec![0; r1cs.num_variables];
         witness[0] = 1;
         witness[r1cs.public_slots[0]] = 50;
@@ -388,7 +426,7 @@ mod tests {
         let c = b.constant(7);
         let s = b.add(x, c);
         let ir = b.build();
-        let r1cs = lower_r1cs(&ir);
+        let r1cs = lower_r1cs(&ir).unwrap();
 
         let mut witness = vec![0; r1cs.num_variables];
         witness[0] = 1;
@@ -401,10 +439,41 @@ mod tests {
     #[test]
     fn variable_names_carry_over() {
         let (ir, _) = balance_transfer_ir();
-        let r1cs = lower_r1cs(&ir);
+        let r1cs = lower_r1cs(&ir).unwrap();
         let has = |needle: &str| r1cs.names.iter().any(|n| n.as_deref() == Some(needle));
         assert!(has("sender_balance"));
         assert!(has("receiver_balance"));
         assert!(has("amount"));
+    }
+
+    #[test]
+    fn malformed_witness_is_an_error_not_a_panic() {
+        let (ir, _) = balance_transfer_ir();
+        let r1cs = lower_r1cs(&ir).unwrap();
+        assert_eq!(
+            r1cs.evaluate(&[1]),
+            Err(EvaluationError::WitnessLength { got: 1, expected: r1cs.num_variables })
+        );
+        let mut wrong_const = alloc::vec![0; r1cs.num_variables];
+        wrong_const[r1cs.public_slots[0]] = 50;
+        assert_eq!(r1cs.evaluate(&wrong_const), Err(EvaluationError::ConstantSlot));
+    }
+
+    #[test]
+    fn lowering_a_malformed_ir_returns_the_circuit_error() {
+        // Node 0 references a node that does not exist; the lowering must
+        // surface the typed structural error instead of panicking.
+        let mut ir = ConstraintSystem {
+            name: String::from("bad"),
+            ..Default::default()
+        };
+        ir.exprs.push(Expr::Add(7, 7));
+        assert_eq!(
+            lower_r1cs(&ir),
+            Err(crate::circuit::CircuitError::OutOfRangeOperand {
+                expr: 0,
+                operand: 7
+            })
+        );
     }
 }

@@ -1,0 +1,5 @@
+error: `return` must be the function's final statement; an early return is control flow, which #[zk_provable] cannot express as straight-line constraints
+ --> tests/ui/early_return.rs:5:5
+  |
+5 |     return;
+  |     ^^^^^^

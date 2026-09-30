@@ -289,7 +289,9 @@ impl Lowerer {
         match stmt {
             Stmt::Local(local) => self.lower_local(local),
             Stmt::Macro(sm) => self.lower_macro(&sm.mac),
-            Stmt::Expr(expr, semi) => self.lower_expr_stmt(expr, semi.is_none() && is_last),
+            Stmt::Expr(expr, semi) => {
+                self.lower_expr_stmt(expr, semi.is_none() && is_last, is_last)
+            }
             Stmt::Item(item) => Err(Error::new(
                 item.span(),
                 "nested items are not supported inside #[zk_provable] functions",
@@ -367,9 +369,9 @@ impl Lowerer {
         Ok(())
     }
 
-    fn lower_expr_stmt(&mut self, expr: &Expr, is_tail: bool) -> syn::Result<()> {
+    fn lower_expr_stmt(&mut self, expr: &Expr, is_tail: bool, is_last: bool) -> syn::Result<()> {
         match expr {
-            Expr::Return(ret) => self.lower_return(ret),
+            Expr::Return(ret) => self.lower_return(ret, is_last),
             Expr::Macro(m) => self.lower_macro(&m.mac),
             Expr::If(_) | Expr::Match(_) | Expr::ForLoop(_) | Expr::While(_) | Expr::Loop(_) => {
                 Err(Error::new(
@@ -394,28 +396,37 @@ impl Lowerer {
         }
     }
 
-    fn lower_return(&mut self, ret: &ExprReturn) -> syn::Result<()> {
-        match &ret.expr {
-            Some(expr) => {
-                if !self.has_return {
-                    return Err(Error::new(
-                        ret.span(),
-                        "this function has no return type, so it cannot return a value",
-                    ));
+    fn lower_return(&mut self, ret: &ExprReturn, is_last: bool) -> syn::Result<()> {
+        let early = |span| {
+            Error::new(
+                span,
+                "`return` must be the function's final statement; an early return is control flow, which #[zk_provable] cannot express as straight-line constraints",
+            )
+        };
+        match (&ret.expr, self.has_return) {
+            (Some(expr), true) => {
+                if !is_last {
+                    return Err(early(ret.span()));
                 }
                 let handle = self.compile_expr(expr)?;
                 self.bind_output(&handle, expr.span())
             }
-            None => {
-                if self.has_return {
-                    Err(Error::new(
-                        ret.span(),
-                        "this function must return a value of its declared type",
-                    ))
-                } else {
-                    Ok(())
+            (None, false) => {
+                if !is_last {
+                    return Err(early(ret.span()));
                 }
+                Ok(())
             }
+            // A value-less `return` in a value-returning function, or the
+            // reverse: the declared types alone reject it.
+            (Some(_), false) => Err(Error::new(
+                ret.span(),
+                "this function has no return type, so it cannot return a value",
+            )),
+            (None, true) => Err(Error::new(
+                ret.span(),
+                "this function must return a value of its declared type",
+            )),
         }
     }
 
@@ -444,25 +455,16 @@ impl Lowerer {
             .last()
             .ok_or_else(|| Error::new(mac.span(), "empty macro path"))?;
         match segment.ident.to_string().as_str() {
-            "assert" => {
+            "assert" | "debug_assert" => {
                 let parsed: OneExpr = syn::parse2(mac.tokens.clone()).map_err(|_| {
                     Error::new(
                         mac.span(),
-                        "`assert!` in #[zk_provable] takes exactly one comparison; format messages are not supported",
+                        "`assert!` in #[zk_provable] takes exactly one boolean expression; format messages are not supported",
                     )
                 })?;
-                let bin = match &parsed.0 {
-                    Expr::Binary(bin) => bin,
-                    other => {
-                        return Err(Error::new(
-                            other.span(),
-                            "`assert!` in #[zk_provable] must contain a comparison such as `a >= b`",
-                        ));
-                    }
-                };
-                self.lower_comparison(bin)
+                self.lower_assertion(&parsed.0)
             }
-            "assert_eq" => {
+            "assert_eq" | "debug_assert_eq" => {
                 let parsed: TwoExprs = syn::parse2(mac.tokens.clone()).map_err(|_| {
                     Error::new(
                         mac.span(),
@@ -477,8 +479,26 @@ impl Lowerer {
             other => Err(Error::new(
                 segment.ident.span(),
                 format!(
-                    "macro `{other}!` is not supported in #[zk_provable] functions (only `assert!` and `assert_eq!` are recognized)"
+                    "macro `{other}!` is not supported in #[zk_provable] functions (only `assert!`, `assert_eq!`, `debug_assert!` and `debug_assert_eq!` are recognized)"
                 ),
+            )),
+        }
+    }
+
+    /// Lowers one boolean claim from `assert!`: either a comparison or a
+    /// conjunction (`&&`) of comparisons. `debug_assert!` lands here too — a
+    /// circuit has no debug builds, so the claim is always enforced.
+    fn lower_assertion(&mut self, expr: &Expr) -> syn::Result<()> {
+        match expr {
+            Expr::Binary(bin) if matches!(bin.op, BinOp::And(_)) => {
+                self.lower_assertion(&bin.left)?;
+                self.lower_assertion(&bin.right)?;
+                Ok(())
+            }
+            Expr::Binary(bin) => self.lower_comparison(bin),
+            other => Err(Error::new(
+                other.span(),
+                "`assert!` in #[zk_provable] must contain a comparison such as `a >= b` (conjunctions with `&&` are allowed)",
             )),
         }
     }
@@ -512,6 +532,12 @@ impl Lowerer {
                 return Err(Error::new(
                     bin.span(),
                     "`!=` cannot be expressed as an arithmetic constraint; use a range check or equality instead",
+                ));
+            }
+            BinOp::Or(_) => {
+                return Err(Error::new(
+                    bin.span(),
+                    "`||` cannot be expressed as arithmetic constraints; use separate `assert!`s or a conjunction with `&&`",
                 ));
             }
             _ => {

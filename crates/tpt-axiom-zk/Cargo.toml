@@ -22,6 +22,7 @@ default = []
 conformance = []
 
 [dependencies]
+sha2 = { workspace = true }
 tpt-axiom-ir = { workspace = true }
 
 # docs.rs builds with every feature so all doc examples render.

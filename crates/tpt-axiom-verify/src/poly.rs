@@ -1,4 +1,4 @@
-//! Canonical multivariate polynomial normal form over `i64` coefficients.
+//! Canonical multivariate polynomial normal form over `i128` coefficients.
 //!
 //! This is the core tool the rest of the crate builds on: normalizing two
 //! arithmetic expressions (built from `+`, `-`, `*`, unary `-`, constants and
@@ -19,9 +19,14 @@ type Monomial = Vec<usize>;
 /// A polynomial in canonical form: a map from monomial to its (non-zero)
 /// coefficient. Two polynomials are equal iff their canonical forms are
 /// equal, regardless of how each was built up.
+///
+/// Coefficients are `i128` so expanding real circuits (e.g. products of
+/// several 64-bit-wide inputs, with integer coefficients) cannot overflow
+/// mid-normalization; the identities checked here are exact, and an overflow
+/// would silently corrupt an equality verdict.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Polynomial {
-    terms: BTreeMap<Monomial, i64>,
+    terms: BTreeMap<Monomial, i128>,
 }
 
 impl Polynomial {
@@ -36,7 +41,7 @@ impl Polynomial {
     pub fn constant(value: i64) -> Self {
         let mut terms = BTreeMap::new();
         if value != 0 {
-            terms.insert(Monomial::new(), value);
+            terms.insert(Monomial::new(), i128::from(value));
         }
         Self { terms }
     }
@@ -55,7 +60,7 @@ impl Polynomial {
         self.terms.is_empty()
     }
 
-    fn add_term(&mut self, mono: Monomial, coeff: i64) {
+    fn add_term(&mut self, mono: Monomial, coeff: i128) {
         if coeff == 0 {
             return;
         }

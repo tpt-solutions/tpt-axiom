@@ -83,6 +83,64 @@ fn comparison_operators_lower() {
     );
 }
 
+#[zk_provable(backend = "halo2")]
+fn conjunction(#[secret] x: i64, #[public] lo: i64, #[public] hi: i64) {
+    assert!(x >= lo && x <= hi);
+}
+
+#[test]
+fn conjunction_of_comparisons_lowers_both_halves() {
+    let ir = Conjunction.build();
+    // `x >= lo && x <= hi` — one constraint per comparison, in order.
+    assert_eq!(ir.constraints.len(), 2);
+    assert!(
+        ir.constraints
+            .iter()
+            .all(|c| matches!(c, Constraint::NonNegative(_)))
+    );
+    assert!(ir.validate().is_ok());
+    // Semantics: the lowered constraints mean exactly the conjunction.
+    let x = ir.variable_id("x").expect("x");
+    let lo = ir.variable_id("lo").expect("lo");
+    let hi = ir.variable_id("hi").expect("hi");
+    let table = tpt_axiom_verify::circuit::normalize_all(&ir);
+    tpt_axiom_verify::circuit::check_comparison(
+        &table,
+        &ir.constraints[0],
+        tpt_axiom_verify::Comparison::Ge,
+        x,
+        lo,
+    )
+    .expect("first half must encode x >= lo");
+    tpt_axiom_verify::circuit::check_comparison(
+        &table,
+        &ir.constraints[1],
+        tpt_axiom_verify::Comparison::Le,
+        x,
+        hi,
+    )
+    .expect("second half must encode x <= hi");
+}
+
+#[zk_provable(backend = "halo2")]
+#[allow(clippy::missing_const_for_fn)] // kept fn shape is fixed by the macro
+#[allow(clippy::eq_op)] // the point is that debug_assert_eq! lowers at all
+fn debug_assertions(#[secret] x: i64, #[public] hi: i64) {
+    debug_assert!(x <= hi);
+    debug_assert_eq!(x, x);
+}
+
+#[test]
+fn debug_assertions_are_always_enforced() {
+    // A circuit has no debug builds: debug_assert! must lower to the same
+    // constraints assert! would.
+    let ir = DebugAssertions.build();
+    assert_eq!(ir.constraints.len(), 2);
+    assert!(matches!(ir.constraints[0], Constraint::NonNegative(_)));
+    assert!(matches!(ir.constraints[1], Constraint::Equal(_, _)));
+    assert!(ir.validate().is_ok());
+}
+
 #[test]
 fn original_functions_still_run_as_plain_rust() {
     // The macro keeps the original function as the source-of-truth Rust logic.

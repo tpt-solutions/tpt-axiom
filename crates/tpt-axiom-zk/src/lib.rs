@@ -25,9 +25,11 @@ pub use tpt_axiom_ir;
 
 mod backend;
 mod circuit;
+pub mod claim;
 #[cfg(feature = "conformance")]
 pub mod conformance;
 pub mod witness;
 
 pub use crate::backend::ZkBackend;
 pub use crate::circuit::CircuitDefinition;
+pub use crate::claim::{ProofClaim, ir_digest};

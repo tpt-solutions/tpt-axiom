@@ -67,14 +67,22 @@ impl ArkworksParams {
 /// field negation).
 #[must_use]
 pub fn encode_scalar(value: i64) -> Fr {
-    let magnitude = Fr::from(value.unsigned_abs());
-    if value < 0 { -magnitude } else { magnitude }
+    encode_i128(i128::from(value))
 }
 
 /// Encodes an unsigned scalar into the BLS12-381 scalar field.
 #[must_use]
 pub fn encode_u64(value: u64) -> Fr {
-    Fr::from(value)
+    encode_i128(i128::from(value))
+}
+
+/// Encodes a signed `i128` scalar into the BLS12-381 scalar field (negatives
+/// as field negation). The scalar field exceeds 254 bits, so every `i128`
+/// value has a distinct image — no wraparound is possible.
+#[must_use]
+pub fn encode_i128(value: i128) -> Fr {
+    let magnitude = Fr::from(value.unsigned_abs());
+    if value < 0 { -magnitude } else { magnitude }
 }
 
 /// A [`ConstraintSystem`] lowered into arkworks R1CS, optionally carrying the
@@ -212,20 +220,20 @@ impl ConstraintSynthesizer<Fr> for ArkworksCircuit {
         let mut var_of: Vec<Variable> = vec![Variable::One; ir.variables.len()];
         for id in &ir.public_inputs {
             if let Expr::Var(var) = ir.exprs[*id] {
-                let value = witness.node(&ir, *id);
+                let value = witness.node(*id);
                 var_of[var] = cs.new_input_variable(|| {
                     value
-                        .map(encode_scalar)
+                        .map(encode_i128)
                         .ok_or(SynthesisError::AssignmentMissing)
                 })?;
             }
         }
         for id in &ir.secret_inputs {
             if let Expr::Var(var) = ir.exprs[*id] {
-                let value = witness.node(&ir, *id);
+                let value = witness.node(*id);
                 var_of[var] = cs.new_witness_variable(|| {
                     value
-                        .map(encode_scalar)
+                        .map(encode_i128)
                         .ok_or(SynthesisError::AssignmentMissing)
                 })?;
             }
@@ -239,7 +247,7 @@ impl ConstraintSynthesizer<Fr> for ArkworksCircuit {
                 Expr::Var(var) => var_lc(var_of[*var]),
                 Expr::Const(c) => term(encode_scalar(*c), Variable::One),
                 Expr::Add(l, r) => {
-                    let out = Self::alloc_node(&cs, witness.node(&ir, id))?;
+                    let out = Self::alloc_node(&cs, witness.node(id))?;
                     let (l, r) = (
                         node_lc[*l].clone().expect("child"),
                         node_lc[*r].clone().expect("child"),
@@ -248,7 +256,7 @@ impl ConstraintSynthesizer<Fr> for ArkworksCircuit {
                     var_lc(out)
                 }
                 Expr::Sub(l, r) => {
-                    let out = Self::alloc_node(&cs, witness.node(&ir, id))?;
+                    let out = Self::alloc_node(&cs, witness.node(id))?;
                     let (l, r) = (
                         node_lc[*l].clone().expect("child"),
                         node_lc[*r].clone().expect("child"),
@@ -257,13 +265,13 @@ impl ConstraintSynthesizer<Fr> for ArkworksCircuit {
                     var_lc(out)
                 }
                 Expr::Neg(n) => {
-                    let out = Self::alloc_node(&cs, witness.node(&ir, id))?;
+                    let out = Self::alloc_node(&cs, witness.node(id))?;
                     let n = node_lc[*n].clone().expect("child");
                     cs.enforce_constraint(var_lc(out), var_lc(Variable::One), neg_lc(n))?;
                     var_lc(out)
                 }
                 Expr::Mul(l, r) => {
-                    let out = Self::alloc_node(&cs, witness.node(&ir, id))?;
+                    let out = Self::alloc_node(&cs, witness.node(id))?;
                     let (l, r) = (
                         node_lc[*l].clone().expect("child"),
                         node_lc[*r].clone().expect("child"),
@@ -292,8 +300,11 @@ impl ConstraintSynthesizer<Fr> for ArkworksCircuit {
                     // Negative values deliberately wrap: the resulting bit
                     // sum then disagrees with the node's variable, so R1CS
                     // synthesis rejects the witness.
-                    #[allow(clippy::cast_sign_loss)] // wrapping is the point
-                    let checked = witness.node(&ir, e).map(|v| v as u64);
+                    #[allow(
+                        clippy::cast_sign_loss, // wrapping is the point
+                        clippy::cast_possible_truncation // ...and so is truncation
+                    )]
+                    let checked = witness.node(e).map(|v| v as u64);
                     let source = node_lc[e].clone().expect("node");
                     range_check(&cs, range_bits, checked, &source)?;
                 }
@@ -304,11 +315,7 @@ impl ConstraintSynthesizer<Fr> for ArkworksCircuit {
         // declared integer type. Signed types are shifted by `2^(bits-1)` into
         // `[0, 2^bits)`; unsigned types are checked directly against the input.
         for (var_id, info) in ir.variables.iter().enumerate() {
-            let Some(expr_id) = ir
-                .exprs
-                .iter()
-                .position(|e| matches!(e, Expr::Var(v) if *v == var_id))
-            else {
+            let Some(expr_id) = ir.var_expr_id(var_id) else {
                 continue;
             };
             let bits = usize::try_from(info.int_type.bits)
@@ -316,9 +323,9 @@ impl ConstraintSynthesizer<Fr> for ArkworksCircuit {
                 .clamp(1, 64)
                 .min(circuit_bits.max(1));
             let offset = info.int_type.signed_offset();
-            let checked = witness.node(&ir, expr_id).map(|v| {
+            let checked = witness.node(expr_id).map(|v| {
                 if info.int_type.signed {
-                    u64::try_from(i128::from(v) + i128::from(offset)).unwrap_or(u64::MAX)
+                    u64::try_from(v + i128::from(offset)).unwrap_or(u64::MAX)
                 } else {
                     u64::try_from(v).unwrap_or(0)
                 }
@@ -341,11 +348,11 @@ impl ConstraintSynthesizer<Fr> for ArkworksCircuit {
 impl ArkworksCircuit {
     fn alloc_node(
         cs: &ConstraintSystemRef<Fr>,
-        value: Option<i64>,
+        value: Option<i128>,
     ) -> Result<Variable, SynthesisError> {
         cs.new_witness_variable(|| {
             value
-                .map(encode_scalar)
+                .map(encode_i128)
                 .ok_or(SynthesisError::AssignmentMissing)
         })
     }
@@ -377,8 +384,12 @@ fn range_check(
 }
 
 /// The value of every expression node, when a witness is available.
+///
+/// Exact `i128` evaluation ([`tpt_axiom_zk::witness::evaluate_nodes`]); an
+/// overflowing node evaluates to `None`, which surfaces at synthesis as an
+/// assignment failure rather than a silently wrapped assignment.
 struct NodeWitness {
-    values: Vec<Option<i64>>,
+    values: Vec<Option<i128>>,
 }
 
 impl NodeWitness {
@@ -388,8 +399,7 @@ impl NodeWitness {
         }
     }
 
-    fn node(&self, ir: &ConstraintSystem, id: usize) -> Option<i64> {
-        let _ = ir;
+    fn node(&self, id: usize) -> Option<i128> {
         self.values.get(id).copied().flatten()
     }
 }

@@ -17,9 +17,11 @@
 //! proven to fit *its own* declared width and signedness — a `u8` input to
 //! `[0, 2^8)`, an `i64` input to `[-2^63, 2^63)` — capped by
 //! [`Halo2Params::range_bits`] (default 64), and every `NonNegative` constraint
-//! is proven to lie in `[0, 2^range_bits)`. Values produced by `+`/`-`/`*` are
-//! exact field images of the integer DAG; intermediate results that overflow
-//! `i64` make proving fail rather than wrap.
+//! is proven to lie in `[0, 2^range_bits)`. Witnesses are validated with exact
+//! `i128` arithmetic before proving, and circuits whose intermediates could
+//! approach the field size (~254 bits) are rejected at compile time
+//! ([`tpt_axiom_ir::ConstraintSystem::validate`]), so a field image can never
+//! wrap past the integer semantics.
 //!
 //! # Verifying-key portability
 //!
@@ -44,7 +46,7 @@ use rand::rngs::OsRng;
 
 pub mod circuit;
 
-pub use crate::circuit::{Halo2Circuit, Halo2Params, auto_k, encode_scalar, encode_u64};
+pub use crate::circuit::{Halo2Circuit, Halo2Params, auto_k, encode_i128, encode_scalar, encode_u64};
 pub use tpt_axiom_zk::witness::WitnessError;
 
 pub use tpt_axiom_ir;
@@ -62,6 +64,9 @@ impl Halo2Backend {
 /// Failures of the halo2 backend.
 #[derive(Debug)]
 pub enum Halo2Error {
+    /// The IR circuit is not well-formed (structural violation, or an
+    /// intermediate whose static width could wrap the field).
+    InvalidCircuit(tpt_axiom_ir::CircuitError),
     /// The public/secret witness slices disagree with the compiled circuit.
     Witness(WitnessError),
     /// Key generation, proving, or verification failed.
@@ -73,6 +78,7 @@ pub enum Halo2Error {
 impl fmt::Display for Halo2Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidCircuit(e) => write!(f, "invalid circuit: {e}"),
             Self::Witness(e) => write!(f, "witness mismatch: {e}"),
             Self::Plonk(e) => write!(f, "halo2 plonk failure: {e:?}"),
             Self::InvalidParams(msg) => write!(f, "invalid halo2 params: {msg}"),
@@ -81,6 +87,12 @@ impl fmt::Display for Halo2Error {
 }
 
 impl std::error::Error for Halo2Error {}
+
+impl From<tpt_axiom_ir::CircuitError> for Halo2Error {
+    fn from(e: tpt_axiom_ir::CircuitError) -> Self {
+        Self::InvalidCircuit(e)
+    }
+}
 
 impl From<WitnessError> for Halo2Error {
     fn from(e: WitnessError) -> Self {
@@ -114,11 +126,17 @@ impl fmt::Debug for Halo2ProvingMaterial {
 }
 
 /// Backend verifying key: halo2's structured parameters plus the circuit's
-/// verifying key.
+/// verifying key, and the number of public inputs the circuit declares.
+///
+/// halo2 cannot recover that count from the key alone; it is what lets
+/// [`ZkBackend::verify`](tpt_axiom_zk::ZkBackend::verify) report a wrong
+/// public-input count as a clean `Ok(false)` instead of an error.
 #[derive(Clone)]
 pub struct Halo2VerifyingMaterial {
     params: Params<vesta::Affine>,
     vk: Halo2VerifyingKey<vesta::Affine>,
+    /// Number of public inputs the verified circuit declares.
+    pub num_publics: usize,
 }
 
 #[allow(clippy::missing_fields_in_debug)]
@@ -146,6 +164,7 @@ impl tpt_axiom_zk::ZkBackend for Halo2Backend {
     }
 
     fn compile(&self, ir: &tpt_axiom_ir::ConstraintSystem) -> Result<Self::Circuit, Self::Error> {
+        ir.validate()?;
         let params = Halo2Params::default();
         Ok(Halo2Circuit::compile(ir, params.range_bits, params.k))
     }
@@ -155,6 +174,7 @@ impl tpt_axiom_zk::ZkBackend for Halo2Backend {
         ir: &tpt_axiom_ir::ConstraintSystem,
         params: &[u8],
     ) -> Result<(Self::ProvingKey, Self::VerifyingKey), Self::Error> {
+        ir.validate()?;
         let decoded = Halo2Params::decode(params);
         let k = if decoded.k == 0 {
             circuit::auto_k(ir, decoded.range_bits)
@@ -173,6 +193,7 @@ impl tpt_axiom_zk::ZkBackend for Halo2Backend {
             Halo2VerifyingMaterial {
                 params: halo2_params,
                 vk,
+                num_publics: ir.num_public(),
             },
         ))
     }
@@ -207,6 +228,11 @@ impl tpt_axiom_zk::ZkBackend for Halo2Backend {
         public: &[tpt_axiom_ir::Scalar],
         proof: &Self::Proof,
     ) -> Result<bool, Self::Error> {
+        if public.len() != vk.num_publics {
+            // A proof is bound to the circuit's public-input count; the wrong
+            // count is a false claim, not a backend failure.
+            return Ok(false);
+        }
         let instance: Vec<Fp> = public.iter().map(|&v| circuit::encode_scalar(v)).collect();
         let mut transcript =
             Blake2bRead::<_, vesta::Affine, Challenge255<vesta::Affine>>::init(proof.0.as_slice());
