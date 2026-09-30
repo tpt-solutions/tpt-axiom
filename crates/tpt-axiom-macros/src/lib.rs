@@ -82,8 +82,44 @@ impl Parse for ZkProvableArgs {
         if !input.is_empty() {
             return Err(input.error("unexpected tokens after backend argument"));
         }
-        Ok(Self {
-            backend: value.value(),
-        })
+        let backend = value.value();
+        if backend.is_empty() {
+            return Err(syn::Error::new(
+                value.span(),
+                "`backend` must not be empty (e.g. `backend = \"halo2\"`)",
+            ));
+        }
+        // Third-party backends are allowed (the string only feeds the
+        // `CircuitDefinition::backend` selector), but a near-miss of a known
+        // backend is almost certainly a typo — say so, with the fix.
+        let known = ["halo2", "arkworks", "sp1"];
+        if !known.contains(&backend.as_str()) {
+            if let Some(candidate) = known.iter().find(|k| levenshtein(k, &backend) <= 2) {
+                return Err(syn::Error::new(
+                    value.span(),
+                    format!(
+                        "unknown backend `{backend}`; did you mean `{candidate}`? (custom backends are allowed — use `#[allow]`-free exact names and register an adapter implementing `ZkBackend`)"
+                    ),
+                ));
+            }
+        }
+        Ok(Self { backend })
     }
+}
+
+/// Plain Levenshtein distance, for the backend-typo suggestion.
+fn levenshtein(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    let mut cur = vec![0_usize; b.len() + 1];
+    for i in 1..=a.len() {
+        cur[0] = i;
+        for j in 1..=b.len() {
+            let cost = usize::from(a[i - 1] != b[j - 1]);
+            cur[j] = (prev[j] + 1).min(cur[j - 1] + 1).min(prev[j - 1] + cost);
+        }
+        core::mem::swap(&mut prev, &mut cur);
+    }
+    prev[b.len()]
 }

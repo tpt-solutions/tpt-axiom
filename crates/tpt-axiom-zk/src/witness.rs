@@ -104,6 +104,8 @@ impl core::fmt::Display for WitnessError {
     }
 }
 
+impl core::error::Error for WitnessError {}
+
 /// Validates a witness against the IR.
 ///
 /// Checks correct arity, inputs within their declared types, and every

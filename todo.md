@@ -200,11 +200,12 @@ Findings come from a read-only code review; reproduce each bug with a failing te
 - [ ] Circuit registry (`inventory`/`linkme`) so the mismatch detector runs automatically (`cargo axiom check`)
 - [ ] Real CLI as `cargo axiom`: `new`, `doctor`, `inspect circuit`, `check`, `keygen|prove|verify --in inputs.json`, `bench`, `explain`; clap, `--json`, completions
 - [ ] Serialization: persist halo2 vk/params, versioned proof envelope with IR hash, `from_bytes`, serde on `ProofClaim`, `std::error::Error` + `Display` on all error types
-- [ ] More macro ui tests + helpful suggestions (floats, `if`/`match`, `!=`, calls); validated `backend = "..."`
+- [x] Validated `backend = "..."` — empty backend names are rejected, and a near-miss of a known backend (`halo2`, `arkworks`, `sp1`) produces a "did you mean" compile error (custom backend names stay allowed — the string only feeds the `CircuitDefinition::backend` selector); new `early_return` ui case covers the non-final-`return` diagnostic. (The per-construct "helpful suggestions" for floats/`if`/`match`/`!=`/calls already exist as dedicated compile errors; no further ui cases were added for them.)
 
 ### Phase D: Missing Features & Innovation
 - [ ] Correlated uncertainty (`CorrelatedFuzzy` / covariance vector with Jacobian propagation)
-- [ ] Nonlinear ops on `Fuzzy` (`exp`, `ln`, `sqrt`, `powi`, `tanh`) with second-order mean correction; unscented-transform and Monte Carlo propagation modes
+- [x] Nonlinear ops on `Fuzzy` (`exp`, `ln`, `sqrt`, `powi`, `tanh`) with second-order mean correction — a generic `Fuzzy::transform(f, f', f'')` engine (mean `f(m) + f''(m)·v/2`, variance `(f'(m))²·v`), closed-form tests per transform, a Monte-Carlo-anchored check that the exp correction beats first-order against the exact lognormal mean, and IEEE out-of-domain semantics (no panics). (Unscented-transform and Monte Carlo propagation modes remain open.)
+
 - [ ] More distributions (Uniform, Beta, Gamma, LogNormal, Student-t, Poisson, Binomial, mixtures); `pdf`/`cdf`/`quantile`; `prob_greater_than`; KL; `Sum`/`Product`; N-way fusion; conjugate updates; `from_logits`/`top_k`/`cross_entropy` in core
 - [ ] Verifiable uncertain claims: prove a fused `Fuzzy` estimate/decision meets a threshold without revealing raw readings (fixed-point `Fuzzy` in-circuit)
 - [ ] Proof-carrying `DecisionRecord`

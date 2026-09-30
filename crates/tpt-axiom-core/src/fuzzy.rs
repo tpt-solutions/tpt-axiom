@@ -185,6 +185,75 @@ impl<T: Float> Fuzzy<T> {
         Self::new_raw(mean, variance)
     }
 
+    /// Applies a nonlinear function through the delta method, with the
+    /// **second-order mean correction** and first-order variance scaling:
+    ///
+    /// ```text
+    /// mean' = f(m) + f''(m) · v / 2      (second-order E[f(X)] ≈)
+    /// var'  = (f'(m))² · v               (first-order Var[f(X)] ≈)
+    /// ```
+    ///
+    /// This is the generic engine behind the named transforms below
+    /// ([`Self::exp`], [`Self::ln`], …). Out-of-domain operating points
+    /// (e.g. `ln` at a non-positive mean) follow IEEE semantics through the
+    /// unchecked constructor — NaN in, NaN documented — the same contract
+    /// as the arithmetic operators.
+    #[must_use]
+    pub fn transform(&self, f: impl Fn(T) -> T, df: T, ddf: T) -> Self {
+        let corrected_mean = f(self.mean) + ddf * self.variance / (T::one() + T::one());
+        let variance = df * df * self.variance;
+        Self::new_raw(corrected_mean, variance)
+    }
+
+    /// `exp(x)`: mean `e^m + e^m·v/2` (the second-order correction; the
+    /// *exact* value for a Gaussian input is the lognormal mean `e^{m+v/2}`),
+    /// variance `(e^m)²·v`.
+    #[must_use]
+    pub fn exp(&self) -> Self {
+        let m = self.mean.exp();
+        self.transform(T::exp, m, m)
+    }
+
+    /// `ln(x)`: mean `ln m − v/(2m²)`, variance `v/m²`. A non-positive mean
+    /// is out of domain and yields IEEE NaN/−inf semantics.
+    #[must_use]
+    pub fn ln(&self) -> Self {
+        let m = self.mean;
+        self.transform(T::ln, T::one() / m, -T::one() / (m * m))
+    }
+
+    /// `sqrt(x)`: mean `√m − v/(8m^{3/2})`, variance `v/(4m)`. A negative
+    /// mean is out of domain and yields IEEE NaN.
+    #[must_use]
+    pub fn sqrt(&self) -> Self {
+        let m = self.mean;
+        let root = m.sqrt();
+        let four = T::one() + T::one() + T::one() + T::one();
+        self.transform(T::sqrt, T::one() / (root + root), -T::one() / (four * root * m))
+    }
+
+    /// `x^n` for integer `n`: mean `m^n + n(n−1)m^{n−2}·v/2`, variance
+    /// `(n·m^{n−1})²·v` (the `f''` term is zero for `n ∈ {0, 1}`).
+    ///
+    /// # Panics
+    /// Only if `T`'s `FromPrimitive` cannot represent `n` (never for the
+    /// float primitives this crate targets).
+    #[must_use]
+    pub fn powi(&self, n: i32) -> Self {
+        let df = T::from(n).unwrap() * self.mean.powi(n - 1);
+        let ddf = T::from(n * (n - 1)).unwrap() * self.mean.powi(n - 2);
+        self.transform(|x| x.powi(n), df, ddf)
+    }
+
+    /// `tanh(x)`: mean `tanh m − tanh m·(1 − tanh² m)·v/2`, variance
+    /// `(1 − tanh² m)²·v` (squashing; uncertainty contracts toward ±1).
+    #[must_use]
+    pub fn tanh(&self) -> Self {
+        let t = self.mean.tanh();
+        let dt = T::one() - t * t;
+        self.transform(T::tanh, dt, -(t + t) * dt)
+    }
+
     /// Like [`Self::fuse`], but rejects inputs that make the combination
     /// degenerate: both variances zero (nothing to fuse), a non-finite
     /// variance sum, or a non-finite result.
@@ -723,6 +792,58 @@ mod tests {
         let c = Fuzzy::constant(1.0_f64);
         let _ = c.fuse(&c); // must not panic
         assert_eq!(c.checked_fuse(&c), Err(crate::FuseError));
+    }
+
+    #[test]
+    fn nonlinear_transforms_match_closed_forms() {
+        let x = Fuzzy::new(2.0_f64, 0.25);
+        // exp: second-order mean e^2 + e^2·v/2 = e^2(1 + 0.125); variance e^{2m}·v.
+        let e = x.exp();
+        let e2 = 2.0_f64.exp();
+        assert!((e.mean() - e2 * 1.125).abs() < 1e-12);
+        assert!((e.variance() - e2 * e2 * 0.25).abs() < 1e-12);
+        // ln: mean ln 2 − v/(2m²) = ln 2 − 0.03125; variance v/m².
+        let l = x.ln();
+        assert!((l.mean() - (2.0_f64.ln() - 0.25 / 8.0)).abs() < 1e-12);
+        assert!((l.variance() - 0.25 / 4.0).abs() < 1e-12);
+        // sqrt: mean √2 − v/(8·2^{3/2}); variance v/(4m).
+        let r = x.sqrt();
+        assert!((r.mean() - (2.0_f64.sqrt() - 0.25 / (8.0 * 2.0 * 2.0f64.sqrt()))).abs() < 1e-12);
+        assert!((r.variance() - 0.25 / 8.0).abs() < 1e-12);
+        // powi(3): mean 8 + 3·2·4·v/2 = 8 + 1.5; variance (3·4)²·0.25 = 36.
+        let c = x.powi(3);
+        assert!((c.mean() - 9.5).abs() < 1e-12);
+        assert!((c.variance() - 36.0).abs() < 1e-12);
+        // tanh at 0: mean 0, variance v (slope 1).
+        let at0 = Fuzzy::new(0.0_f64, 0.1);
+        let t = at0.tanh();
+        assert!(t.mean().abs() < 1e-12);
+        assert!((t.variance() - 0.1).abs() < 1e-12);
+    }
+
+    #[test]
+    fn exp_transform_cross_checks_against_the_lognormal_truth() {
+        // For a Gaussian input, exp(X) is exactly lognormal with mean
+        // e^{m+v/2}: the second-order correction should be close, and much
+        // closer than the plain first-order mean e^m.
+        let (m, v) = (1.0_f64, 0.5);
+        let x = Fuzzy::new(m, v);
+        let truth = (m + v / 2.0).exp();
+        let corrected = x.exp().mean();
+        let first_order = m.exp();
+        assert!(
+            (corrected - truth).abs() < (first_order - truth).abs(),
+            "second-order mean must beat the first-order one"
+        );
+    }
+
+    #[test]
+    fn sqrt_of_negative_mean_is_nan_not_a_panic() {
+        let bad = Fuzzy::new(-1.0_f64, 0.1);
+        let r = bad.sqrt();
+        assert!(r.mean().is_nan());
+        // ln at a non-positive mean likewise.
+        assert!(bad.ln().mean().is_nan());
     }
 
     #[test]
