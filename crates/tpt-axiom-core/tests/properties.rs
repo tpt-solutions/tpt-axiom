@@ -15,7 +15,7 @@ use tpt_axiom_core::{
 
 prop_compose! {
     fn valid_probability()(v in 0.0_f64..=1.0) -> Probability {
-        Probability::new_unchecked(v)
+        Probability::new_or_panic(v)
     }
 }
 
@@ -64,13 +64,13 @@ proptest! {
         w3 in 0.1_f64..10.0,
     ) {
         let e = Evidence::new("obs", w1, Provenance::local())
-            .and_then(|e| e.combine_all([
+            .unwrap()
+            .combine_all([
                 Evidence::new("x", w2, Provenance::local()).unwrap(),
                 Evidence::new("y", w3, Provenance::local()).unwrap(),
-            ]))
-            .unwrap();
-        prop_assert_eq!(e.weight(), w1 * w2 * w3);
-        prop_assert!(e.weight() > 0.0 && e.weight().is_finite());
+            ]);
+        prop_assert_eq!(e.log_weight(), w1.ln() + w2.ln() + w3.ln());
+        prop_assert!(e.weight() > 0.0);
     }
 
     #[test]
@@ -78,8 +78,8 @@ proptest! {
         c in 0.0_f64..=1.0,
         t in 0.0_f64..=1.0,
     ) {
-        let score = Score::new(1_u8, Confidence::new_unchecked(c));
-        let threshold = Confidence::new_unchecked(t);
+        let score = Score::new(1_u8, Confidence::new_or_panic(c));
+        let threshold = Confidence::new_or_panic(t);
         let decision = Decision::from_score(score, threshold);
         prop_assert_eq!(decision.committed().is_some(), c >= t);
     }
@@ -105,18 +105,18 @@ proptest! {
 fn serde_roundtrips_pin_the_v1_wire_format() {
     // Default serde representations are the stable v1 format; these
     // roundtrips break loudly if the wire shape ever changes.
-    let p = Probability::new_unchecked(0.42);
+    let p = Probability::new_or_panic(0.42);
     assert_eq!(serde_json::to_string(&p).unwrap(), "0.42");
     assert_eq!(serde_json::from_str::<Probability>("0.42").unwrap(), p);
 
-    let score = Score::new("value", Confidence::new_unchecked(0.9));
+    let score = Score::new("value", Confidence::new_or_panic(0.9));
     let wire = serde_json::to_string(&score).unwrap();
     assert_eq!(wire, r#"{"value":"value","confidence":0.9}"#);
     assert_eq!(serde_json::from_str::<Score<&str>>(&wire).unwrap(), score);
 
     let decision = Decision::<&str>::Commit {
         value: "x",
-        confidence: Confidence::new_unchecked(0.5),
+        confidence: Confidence::new_or_panic(0.5),
     };
     assert_eq!(
         serde_json::to_string(&decision).unwrap(),
@@ -127,4 +127,15 @@ fn serde_roundtrips_pin_the_v1_wire_format() {
     let wire = serde_json::to_string(&dist).unwrap();
     let back: Categorical<&str> = serde_json::from_str(&wire).unwrap();
     assert_eq!(back.probability_of(&"a").value(), 0.25);
+
+    // Evidence carries its weight in log space (wire-format v2 for this
+    // type: the field is `log_weight`, the exact overflow-free form).
+    let evidence = Evidence::new("obs", 2.0, Provenance::local()).unwrap();
+    let wire = serde_json::to_string(&evidence).unwrap();
+    assert_eq!(
+        wire,
+        r#"{"observation":"obs","log_weight":0.6931471805599453,"provenance":{"origin":"local","timestamp_secs":null,"revision":null}}"#
+    );
+    let back: Evidence<&str> = serde_json::from_str(&wire).unwrap();
+    assert_eq!(back, evidence);
 }

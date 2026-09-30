@@ -16,13 +16,17 @@ categories = ["mathematics", "science", "no-std"]
 workspace = true
 
 [features]
-default = []
+# Float math comes from std by default; `--no-default-features --features
+# libm` builds the crate as true no_std (soft-float portable).
+default = ["std"]
+std = ["num-traits/std"]
+libm = ["num-traits/libm"]
 # Serialisable probabilistic values and decisions (opt-in: keeps the core
 # dependency-free without it).
 serde = ["dep:serde"]
 
 [dependencies]
-num-traits = { version = "0.2", default-features = false, features = ["std"] }
+num-traits = { version = "0.2", default-features = false }
 serde = { version = "1", default-features = false, features = ["alloc", "derive"], optional = true }
 
 [dev-dependencies]

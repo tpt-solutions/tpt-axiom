@@ -65,7 +65,7 @@
 //! }
 //!
 //! let judge = SentimentJudge;
-//! let decision = judge.decide("great product", Confidence::new_unchecked(0.7))?;
+//! let decision = judge.decide("great product", Confidence::new_or_panic(0.7))?;
 //! assert_eq!(decision.committed(), Some(&"positive"));
 //! # Ok::<(), EngineError>(())
 //! ```
@@ -95,6 +95,15 @@ pub enum EngineError {
     InvalidTemperature(f64),
     /// Every score was zero, so no outcome can be preferred over another.
     Degenerate,
+    /// The same label appeared twice in a multi-label output. Per-label
+    /// independence means uncertainty must never leak between labels, and
+    /// two scores for one label is exactly such a leak - the stricter
+    /// (lower) one would silently win or lose depending on iteration order.
+    DuplicateLabel(String),
+    /// The binary threshold policy was degenerate: `active_at <= 0.5` makes
+    /// the abstention band empty, so a coin-flip (`p == 0.5`) output would
+    /// be *committed* rather than escalated. Require a strict majority.
+    InvalidThreshold(f64),
     /// The core probability type rejected a value at construction.
     InvalidProbability(InvalidProbability),
 }
@@ -119,6 +128,13 @@ impl core::fmt::Display for EngineError {
             Self::Degenerate => {
                 f.write_str("every engine score was zero; no outcome can be preferred")
             }
+            Self::DuplicateLabel(label) => {
+                write!(f, "duplicate label `{label}` in multi-label output")
+            }
+            Self::InvalidThreshold(t) => write!(
+                f,
+                "binary threshold must exceed 0.5 (a coin flip must abstain, not commit), got {t}"
+            ),
             Self::InvalidProbability(e) => write!(f, "{e}"),
         }
     }
@@ -135,19 +151,33 @@ impl std::error::Error for EngineError {}
 /// [`EngineVerdict::decide`] and [`MultiLabelOutput::decide`] apply per
 /// label; exposed because it is the reusable primitive for adapters with
 /// their own binary heads.
-#[must_use]
-pub const fn threshold_decision(active: Probability, active_at: Confidence) -> Decision<bool> {
+///
+/// `active_at` must exceed `0.5`: at or below a coin-flip level the
+/// abstention band is empty (`p` or its complement always meets the
+/// threshold), so a maximally uncertain `p == 0.5` output would be
+/// *committed* instead of escalated - contradicting the abstention-first
+/// design. The error names the rejected threshold.
+///
+/// # Errors
+/// [`EngineError::InvalidThreshold`] when `active_at.value() <= 0.5`.
+pub fn threshold_decision(
+    active: Probability,
+    active_at: Confidence,
+) -> Result<Decision<bool>, EngineError> {
+    if active_at.value() <= 0.5 {
+        return Err(EngineError::InvalidThreshold(active_at.value()));
+    }
     let p = active.into_confidence();
     if p.meets(active_at) {
-        Decision::yes(p)
+        Ok(Decision::yes(p))
     } else {
         let not_p = active.complement().into_confidence();
         if not_p.meets(active_at) {
-            Decision::no(not_p)
+            Ok(Decision::no(not_p))
         } else {
-            Decision::Abstain {
+            Ok(Decision::Abstain {
                 reason: AbstentionReason::InsufficientConfidence,
-            }
+            })
         }
     }
 }
@@ -382,8 +412,10 @@ impl EngineVerdict {
     /// Applies [`threshold_decision`] with the caller's policy: commit
     /// yes when the affirmative chance meets `active_at`, commit no when
     /// the negative chance does, abstain in the uncertainty band.
-    #[must_use]
-    pub const fn decide(&self, active_at: Confidence) -> Decision<bool> {
+    ///
+    /// # Errors
+    /// [`EngineError::InvalidThreshold`] when `active_at <= 0.5`.
+    pub fn decide(&self, active_at: Confidence) -> Result<Decision<bool>, EngineError> {
         threshold_decision(self.probability, active_at)
     }
 }
@@ -407,7 +439,10 @@ impl MultiLabelOutput {
     ///
     /// # Errors
     /// [`EngineError::NoOutcomes`] on empty input,
-    /// [`EngineError::InvalidScore`] for the first out-of-domain score.
+    /// [`EngineError::InvalidScore`] for the first out-of-domain score,
+    /// [`EngineError::DuplicateLabel`] when a label appears twice
+    /// (independent per-label decisions cannot represent two scores for
+    /// one label).
     pub fn from_probabilities(
         provenance: Provenance,
         scores: impl IntoIterator<Item = (impl Into<String>, f64)>,
@@ -415,7 +450,13 @@ impl MultiLabelOutput {
         let mut labels = Vec::new();
         for (index, (label, score)) in scores.into_iter().enumerate() {
             match Probability::new(score) {
-                Ok(p) => labels.push((label.into(), p)),
+                Ok(p) => {
+                    let label = label.into();
+                    if labels.iter().any(|(known, _)| *known == label) {
+                        return Err(EngineError::DuplicateLabel(label));
+                    }
+                    labels.push((label, p));
+                }
                 Err(_) => return Err(EngineError::InvalidScore { index, score }),
             }
         }
@@ -431,7 +472,8 @@ impl MultiLabelOutput {
         &self.provenance
     }
 
-    /// The validated per-label chances, in input order.
+    /// The validated per-label chances, in input order (duplicates were
+    /// rejected at construction).
     #[must_use]
     pub fn labels(&self) -> &[(String, Probability)] {
         &self.labels
@@ -449,13 +491,15 @@ impl MultiLabelOutput {
     /// Applies [`threshold_decision`] per label under the caller's
     /// policy: each label independently commits active, commits inactive,
     /// or abstains.
-    #[must_use]
-    pub fn decide(&self, active_at: Confidence) -> MultiLabelDecision {
+    ///
+    /// # Errors
+    /// [`EngineError::InvalidThreshold`] when `active_at <= 0.5`.
+    pub fn decide(&self, active_at: Confidence) -> Result<MultiLabelDecision, EngineError> {
         let mut decision = MultiLabelDecision::new();
         for (label, p) in &self.labels {
-            decision = decision.with(label.as_str(), threshold_decision(*p, active_at));
+            decision = decision.with(label.as_str(), threshold_decision(*p, active_at)?);
         }
-        decision
+        Ok(decision)
     }
 }
 
@@ -635,14 +679,14 @@ mod tests {
         let output =
             EngineOutput::from_probabilities(provenance(), [("a", 0.75), ("b", 0.25)]).unwrap();
         assert_eq!(
-            output.decide(Confidence::new_unchecked(0.7)),
+            output.decide(Confidence::new_or_panic(0.7)),
             Decision::Commit {
                 value: "a",
-                confidence: Confidence::new_unchecked(0.75)
+                confidence: Confidence::new_or_panic(0.75)
             }
         );
         assert_eq!(
-            output.decide(Confidence::new_unchecked(0.8)),
+            output.decide(Confidence::new_or_panic(0.8)),
             Decision::Abstain {
                 reason: AbstentionReason::InsufficientConfidence
             }
@@ -656,7 +700,7 @@ mod tests {
         let ranking = output.ranking();
         assert_eq!(ranking.best().unwrap().value(), &"b");
 
-        let record = output.into_record(Confidence::new_unchecked(0.5));
+        let record = output.into_record(Confidence::new_or_panic(0.5));
         assert_eq!(record.decision().committed(), Some(&"b"));
         assert_eq!(record.provenance().origin, "test-engine");
     }
@@ -695,29 +739,44 @@ mod tests {
     fn verdict_policy_has_three_bands() {
         let confident = EngineVerdict::from_probability(provenance(), 0.9).unwrap();
         assert_eq!(
-            confident.decide(Confidence::new_unchecked(0.8)),
+            confident.decide(Confidence::new_or_panic(0.8)).unwrap(),
             Decision::Commit {
                 value: true,
-                confidence: Confidence::new_unchecked(0.9)
+                confidence: Confidence::new_or_panic(0.9)
             }
         );
         // p = 0.2 is a confident *no* at the same threshold.
         let negative = EngineVerdict::from_probability(provenance(), 0.2).unwrap();
         assert_eq!(
-            negative.decide(Confidence::new_unchecked(0.8)),
+            negative.decide(Confidence::new_or_panic(0.8)).unwrap(),
             Decision::Commit {
                 value: false,
-                confidence: Confidence::new_unchecked(0.8)
+                confidence: Confidence::new_or_panic(0.8)
             }
         );
         // p = 0.5 falls in the uncertainty band either way.
         let uncertain = EngineVerdict::from_probability(provenance(), 0.5).unwrap();
         assert_eq!(
-            uncertain.decide(Confidence::new_unchecked(0.8)),
+            uncertain.decide(Confidence::new_or_panic(0.8)).unwrap(),
             Decision::Abstain {
                 reason: AbstentionReason::InsufficientConfidence
             }
         );
+    }
+
+    #[test]
+    fn coin_flip_thresholds_are_rejected() {
+        // active_at <= 0.5 empties the abstention band: p = 0.5 would
+        // *commit* instead of escalate. The policy refuses to run.
+        let coin = EngineVerdict::from_probability(provenance(), 0.5).unwrap();
+        for bad in [Confidence::NONE, Confidence::new_or_panic(0.5)] {
+            assert_eq!(
+                coin.decide(bad),
+                Err(EngineError::InvalidThreshold(bad.value()))
+            );
+        }
+        // A strict-majority threshold is the minimum viable policy.
+        assert!(coin.decide(Confidence::new_or_panic(0.5 + f64::EPSILON)).is_ok());
     }
 
     #[test]
@@ -730,11 +789,24 @@ mod tests {
         assert_eq!(output.probability_of("toxic").unwrap().value(), 0.9);
         assert_eq!(output.probability_of("missing"), None);
 
-        let decision = output.decide(Confidence::new_unchecked(0.75));
+        let decision = output
+            .decide(Confidence::new_or_panic(0.75))
+            .expect("valid threshold");
         assert_eq!(decision.value_of("toxic"), Some(true));
         assert_eq!(decision.value_of("spam"), None); // uncertainty band
         assert_eq!(decision.value_of("rant"), Some(false)); // 1 - 0.2 >= 0.75
         assert_eq!(decision.active_labels(), vec!["toxic"]);
+    }
+
+    #[test]
+    fn duplicate_labels_are_rejected() {
+        assert_eq!(
+            MultiLabelOutput::from_probabilities(
+                provenance(),
+                [("spam", 0.9), ("toxic", 0.3), ("spam", 0.1)],
+            ),
+            Err(EngineError::DuplicateLabel(String::from("spam")))
+        );
     }
 
     #[test]
@@ -752,12 +824,13 @@ mod tests {
             Err(EngineError::NoOutcomes)
         );
         // All-zero scores are legitimate here: every label is confidently
-        // inactive, unlike the normalized single-head case. (A NONE
-        // threshold would trivially commit everything — policies are the
-        // caller's to choose.)
+        // inactive, unlike the normalized single-head case.
         let zeros = MultiLabelOutput::from_probabilities(provenance(), [("a", 0.0)]).unwrap();
         assert_eq!(
-            zeros.decide(Confidence::new_unchecked(0.5)).value_of("a"),
+            zeros
+                .decide(Confidence::new_or_panic(0.75))
+                .expect("strict-majority threshold")
+                .value_of("a"),
             Some(false)
         );
     }
@@ -780,7 +853,7 @@ mod tests {
         assert_eq!(output.categorical().probability_of(&"yes").value(), 0.5);
         assert_eq!(
             engine
-                .decide("anything", Confidence::new_unchecked(0.6))
+                .decide("anything", Confidence::new_or_panic(0.6))
                 .unwrap(),
             Decision::Abstain {
                 reason: AbstentionReason::InsufficientConfidence

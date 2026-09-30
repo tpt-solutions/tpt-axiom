@@ -38,16 +38,16 @@ mod quants;
 pub use crate::decision_types::{
     BinaryDecision, Calibration, DecisionRecord, Hypotheses, MultiLabelDecision, Ranking,
 };
-pub use crate::distribution::Distribution;
-pub use crate::fuzzy::Fuzzy;
+pub use crate::distribution::{Distribution, InvalidVariance};
+pub use crate::fuzzy::{FuseError, Fuzzy};
 pub use crate::intelligence::{
-    AbstentionReason, Bernoulli, Categorical, Confidence, Decision, EmptyCategorical, Escalation,
-    Evidence, InvalidConfidence, InvalidEvidenceWeight, InvalidProbability, Probability,
-    Provenance, Reproducibility, Score, Uncertain, Validate, ValidationError,
-    classify_by_confidence,
+    AbstentionReason, Bernoulli, Categorical, CategoricalError, Confidence, Decision,
+    EmptyCategorical, Escalation, Evidence, InvalidConfidence, InvalidEvidenceWeight,
+    InvalidProbability, Probability, Provenance, Reproducibility, Score, Uncertain, Validate,
+    ValidationError, classify_by_confidence,
 };
 
 /// Statistical helpers available without importing sub-modules.
 pub mod stats {
-    pub use crate::quants::{erf, norm_cdf, norm_ppf};
+    pub use crate::quants::{erf, erfc, norm_cdf, norm_ppf};
 }

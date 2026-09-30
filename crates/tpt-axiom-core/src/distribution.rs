@@ -19,7 +19,9 @@ use crate::Fuzzy;
 /// Currently only the Gaussian and constant cases are implemented; other
 /// distribution families are future work (see `todo.md`'s "AI & Probabilistic
 /// Intelligence Foundation" section).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Not `Eq`: float-backed, so NaN would break reflexivity.
+#[allow(clippy::derive_partial_eq_without_eq)] // deliberate: float backing
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Distribution<T> {
     /// A Gaussian (normal) distribution with the given mean and variance.
     Gaussian {
@@ -32,10 +34,48 @@ pub enum Distribution<T> {
     Constant(T),
 }
 
+/// The variance was negative or NaN.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InvalidVariance;
+
+impl fmt::Display for InvalidVariance {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("variance must be non-negative and finite")
+    }
+}
+
+impl core::error::Error for InvalidVariance {}
+
 impl<T: Float> Distribution<T> {
     /// Construct a Gaussian distribution from a mean and a variance.
-    pub const fn gaussian(mean: T, variance: T) -> Self {
-        Self::Gaussian { mean, variance }
+    ///
+    /// A zero variance is normalized to [`Self::Constant`] (the two are the
+    /// same distribution, and keeping the degenerate `Gaussian { v: 0 }`
+    /// shape around would split identical distributions into unequal
+    /// variants). A NaN variance is treated as zero by IEEE comparison, so
+    /// it is rejected here as well.
+    ///
+    /// # Panics
+    /// Panics if `variance` is negative or NaN; use [`Self::try_gaussian`]
+    /// for the fallible form.
+    #[must_use]
+    pub fn gaussian(mean: T, variance: T) -> Self {
+        Self::try_gaussian(mean, variance).expect("variance must be non-negative")
+    }
+
+    /// Fallible [`Self::gaussian`].
+    ///
+    /// # Errors
+    /// [`InvalidVariance`] when `variance` is negative or NaN.
+    pub fn try_gaussian(mean: T, variance: T) -> Result<Self, InvalidVariance> {
+        if variance.is_nan() || variance < T::zero() {
+            return Err(InvalidVariance);
+        }
+        if variance == T::zero() {
+            Ok(Self::Constant(mean))
+        } else {
+            Ok(Self::Gaussian { mean, variance })
+        }
     }
 
     /// Construct a deterministic (certain) distribution.
@@ -67,9 +107,14 @@ impl<T: Float> Distribution<T> {
     /// Draws a sample from the distribution using `rng`, a closure producing
     /// independent uniform draws in `[0, 1)`.
     ///
+    /// Draws are clamped into the open interval `(0, 1)` before the quantile
+    /// lookup — a literal `0.0` or `1.0` draw (which a buggy or edge-case RNG
+    /// can produce) would otherwise panic inside
+    /// [`crate::quants::norm_ppf`]; it now maps to the corresponding extreme
+    /// quantile instead.
+    ///
     /// # Panics
-    /// Panics if `rng` yields a value outside `(0, 1)` (propagated from
-    /// [`crate::quants::norm_ppf`]).
+    /// Never: the draw clamp keeps `norm_ppf` inside its `(0, 1)` domain.
     #[must_use]
     pub fn sample(&self, mut rng: impl FnMut() -> f64) -> T
     where
@@ -78,7 +123,8 @@ impl<T: Float> Distribution<T> {
         match self {
             Self::Constant(value) => *value,
             Self::Gaussian { mean, variance } => {
-                let z = T::from_f64(crate::quants::norm_ppf(rng())).unwrap();
+                let draw = rng().clamp(f64::MIN_POSITIVE, 1.0 - f64::EPSILON);
+                let z = T::from_f64(crate::quants::norm_ppf(draw)).unwrap();
                 *mean + z * variance.sqrt()
             }
         }
@@ -139,23 +185,15 @@ impl<T: Float> From<T> for Distribution<T> {
     }
 }
 
-/// Error returned when converting a non-Gaussian [`Distribution`] into a
-/// [`Fuzzy`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct NotGaussian;
-
-impl fmt::Display for NotGaussian {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "distribution is not Gaussian (it is constant)")
-    }
-}
-
-impl<T: Float> TryFrom<Distribution<T>> for Fuzzy<T> {
-    type Error = NotGaussian;
-    fn try_from(d: Distribution<T>) -> Result<Self, Self::Error> {
+/// Every [`Distribution`] *is* representable as a [`Fuzzy`]: a Gaussian maps
+/// to the same mean/variance, a `Constant` to a zero-variance estimate — the
+/// conversion is lossless, so it is an infallible `From` rather than a
+/// `TryFrom` with an error case that could never carry information.
+impl<T: Float> From<Distribution<T>> for Fuzzy<T> {
+    fn from(d: Distribution<T>) -> Self {
         match d {
-            Distribution::Gaussian { mean, variance } => Ok(Self::new(mean, variance)),
-            Distribution::Constant(_) => Err(NotGaussian),
+            Distribution::Gaussian { mean, variance } => Self::new(mean, variance),
+            Distribution::Constant(value) => Self::constant(value),
         }
     }
 }
@@ -239,12 +277,13 @@ mod tests {
         let d: Distribution<f64> = f.into();
         assert_eq!(d.mean(), 2.0);
         assert_eq!(d.variance(), 0.5);
-        let back: Fuzzy<f64> = d.try_into().unwrap();
+        let back: Fuzzy<f64> = Fuzzy::from(d);
         assert!((back.mean() - 2.0).abs() < 1e-12);
         assert!((back.variance() - 0.5).abs() < 1e-12);
 
         let c = Distribution::Constant(1.0_f64);
-        assert!(Fuzzy::<f64>::try_from(c).is_err());
+        let back: Fuzzy<f64> = c.into();
+        assert_eq!(back.variance(), 0.0);
     }
 
     #[test]
@@ -302,5 +341,40 @@ mod tests {
         for _ in 0..10 {
             assert_eq!(c.sample(|| 0.5), 42.0);
         }
+    }
+
+    #[test]
+    fn zero_variance_gaussian_normalizes_to_constant() {
+        let d = Distribution::<f64>::gaussian(5.0, 0.0);
+        assert_eq!(d, Distribution::Constant(5.0));
+        // Round trip: a Constant converts into a zero-variance Fuzzy.
+        let f: Fuzzy<f64> = Distribution::Constant(7.0_f64).into();
+        assert_eq!(f.mean(), 7.0);
+        assert_eq!(f.variance(), 0.0);
+    }
+
+    #[test]
+    fn negative_or_nan_variance_is_rejected() {
+        assert_eq!(
+            Distribution::<f64>::try_gaussian(1.0, -0.5),
+            Err(InvalidVariance)
+        );
+        assert!(Distribution::try_gaussian(1.0, f64::NAN).is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "variance must be non-negative")]
+    fn gaussian_panics_on_negative_variance() {
+        let _ = Distribution::<f64>::gaussian(1.0, -1.0);
+    }
+
+    #[test]
+    fn sample_survives_degenerate_rng_draws() {
+        // A literal 0.0 or 1.0 draw is clamped, not a panic.
+        let g = Distribution::<f64>::gaussian(100.0, 25.0);
+        let lo = g.sample(|| 0.0);
+        let hi = g.sample(|| 1.0);
+        assert!(lo.is_finite() && hi.is_finite());
+        assert!(lo < 100.0 && hi > 100.0);
     }
 }

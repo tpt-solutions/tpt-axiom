@@ -43,14 +43,22 @@ use serde::{Deserialize, Serialize};
 /// `[0, 1]`.
 ///
 /// Construct with [`Probability::new`] (fallible) or
-/// [`Probability::new_unchecked`] (panicking on invalid input). Arithmetic
+/// [`Probability::new_or_panic`] (panicking on invalid input). Arithmetic
 /// that could leave the interval — such as naive addition of two
 /// probabilities — is deliberately not exposed as implicit operators; combine
 /// chances through [`Bernoulli`], [`Categorical`], or the explicit methods
 /// below.
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct Probability(f64);
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Probability {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = f64::deserialize(deserializer)?;
+        Self::new(value).map_err(serde::de::Error::custom)
+    }
+}
 
 /// An invalid probability was rejected at construction.
 #[allow(clippy::derive_partial_eq_without_eq)] // f64 is not Eq
@@ -65,6 +73,12 @@ impl fmt::Display for InvalidProbability {
 
 impl core::error::Error for InvalidProbability {}
 
+impl Default for Probability {
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
 impl Probability {
     /// The probability of an impossible event.
     pub const ZERO: Probability = Probability(0.0);
@@ -73,11 +87,14 @@ impl Probability {
 
     /// Validates a chance in `[0, 1]`.
     ///
+    /// A negative zero normalizes to `+0.0`, so two ways of writing "zero
+    /// chance" compare and hash identically.
+    ///
     /// # Errors
     /// [`InvalidProbability`] when `value` is negative, above one, or NaN.
     pub fn new(value: f64) -> Result<Self, InvalidProbability> {
         if (0.0..=1.0).contains(&value) {
-            Ok(Self(value))
+            Ok(Self(if value == 0.0 { 0.0 } else { value }))
         } else {
             Err(InvalidProbability(value))
         }
@@ -85,10 +102,13 @@ impl Probability {
 
     /// Validates a chance in `[0, 1]`, panicking on invalid input.
     ///
+    /// The name says what it does: validate, *or panic*. It is not an
+    /// unchecked constructor — nothing here skips validation.
+    ///
     /// # Panics
     /// Panics when `value` is outside `[0, 1]` or NaN.
     #[must_use]
-    pub fn new_unchecked(value: f64) -> Self {
+    pub fn new_or_panic(value: f64) -> Self {
         Self::new(value).unwrap_or_else(|e| panic!("{e}"))
     }
 
@@ -175,9 +195,17 @@ impl Eq for Probability {}
 /// distinction downstream decision logic needs, so conversion is explicit:
 /// [`Confidence::into_probability`] documents at the call site that a belief
 /// is being *reinterpreted* as a chance.
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct Confidence(f64);
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Confidence {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = f64::deserialize(deserializer)?;
+        Self::new(value).map_err(serde::de::Error::custom)
+    }
+}
 
 /// An invalid confidence was rejected at construction.
 #[allow(clippy::derive_partial_eq_without_eq)] // f64 is not Eq
@@ -212,10 +240,13 @@ impl Confidence {
 
     /// Validates a confidence level in `[0, 1]`, panicking on invalid input.
     ///
+    /// The name says what it does: validate, *or panic*. It is not an
+    /// unchecked constructor — nothing here skips validation.
+    ///
     /// # Panics
     /// Panics when `value` is outside `[0, 1]` or NaN.
     #[must_use]
-    pub fn new_unchecked(value: f64) -> Self {
+    pub fn new_or_panic(value: f64) -> Self {
         Self::new(value).unwrap_or_else(|e| panic!("{e}"))
     }
 
@@ -250,6 +281,32 @@ impl Confidence {
     #[must_use]
     pub const fn meets(self, threshold: Self) -> bool {
         self.0 >= threshold.0
+    }
+}
+
+impl Default for Confidence {
+    fn default() -> Self {
+        Self::NONE
+    }
+}
+
+impl Eq for Confidence {}
+
+impl Ord for Confidence {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.0.total_cmp(&other.0)
+    }
+}
+
+impl PartialOrd for Confidence {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl fmt::Display for Confidence {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -325,6 +382,42 @@ impl fmt::Display for EmptyCategorical {
 
 impl core::error::Error for EmptyCategorical {}
 
+/// Why [`Categorical::new_strict`] rejected its input.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CategoricalError {
+    /// No outcomes were supplied.
+    Empty,
+    /// A weight was NaN, zero, or negative - the strict constructor does
+    /// not silently drop them the way the tolerant [`Categorical::new`]
+    /// does.
+    InvalidWeight(f64),
+    /// The accumulated total overflowed to infinity, so normalization is
+    /// impossible in `f64`.
+    Overflow,
+}
+
+impl fmt::Display for CategoricalError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Empty => {
+                f.write_str("a categorical distribution needs at least one outcome")
+            }
+            Self::InvalidWeight(w) => {
+                write!(f, "outcome weight must be finite and positive, got {w}")
+            }
+            Self::Overflow => f.write_str("outcome weights overflowed to infinity"),
+        }
+    }
+}
+
+impl core::error::Error for CategoricalError {}
+
+impl From<EmptyCategorical> for CategoricalError {
+    fn from(_: EmptyCategorical) -> Self {
+        CategoricalError::Empty
+    }
+}
+
 impl<T: PartialEq> Categorical<T> {
     /// Builds a distribution over `(outcome, weight)` pairs, normalizing the
     /// weights to sum to one.
@@ -355,8 +448,45 @@ impl<T: PartialEq> Categorical<T> {
             .into_iter()
             .map(|(outcome, w)| {
                 // Invariant: w > 0 and finite, total > 0, so the ratio is in [0, 1].
-                (outcome, Probability::new_unchecked(w / total))
+                (outcome, Probability::new_or_panic(w / total))
             })
+            .collect();
+        Ok(Self { outcomes })
+    }
+
+    /// The strict counterpart of [`Self::new`]: every weight must be finite
+    /// and positive (nothing is silently dropped), the accumulated total
+    /// must not overflow, and at least one outcome must remain. Duplicate
+    /// outcomes still merge into their first position.
+    ///
+    /// # Errors
+    /// [`CategoricalError::InvalidWeight`] for the first NaN/zero/negative
+    /// weight, [`CategoricalError::Overflow`] when the total overflows,
+    /// [`CategoricalError::Empty`] on empty input.
+    pub fn new_strict(
+        outcomes: impl IntoIterator<Item = (T, f64)>,
+    ) -> Result<Self, CategoricalError> {
+        let mut collected: Vec<(T, f64)> = Vec::new();
+        for (outcome, weight) in outcomes {
+            if !weight.is_finite() || weight <= 0.0 {
+                return Err(CategoricalError::InvalidWeight(weight));
+            }
+            if let Some(slot) = collected.iter_mut().find(|(known, _)| *known == outcome) {
+                slot.1 += weight;
+            } else {
+                collected.push((outcome, weight));
+            }
+        }
+        if collected.is_empty() {
+            return Err(CategoricalError::Empty);
+        }
+        let total: f64 = collected.iter().map(|(_, w)| w).sum();
+        if !total.is_finite() {
+            return Err(CategoricalError::Overflow);
+        }
+        let outcomes = collected
+            .into_iter()
+            .map(|(outcome, w)| (outcome, Probability::new_or_panic(w / total)))
             .collect();
         Ok(Self { outcomes })
     }
@@ -500,14 +630,33 @@ impl Provenance {
 /// An observation supporting (or undercutting) a probabilistic value,
 /// carrying its own weight and provenance.
 ///
-/// Combining independent evidence multiplies weights (naive-Bayes style):
-/// [`Evidence::combine`].
+/// Weights are stored in **log space**: combining independent evidence adds
+/// log-weights (naive-Bayes style, [`Evidence::combine`]) and cannot
+/// overflow the way multiplying linear weights can - a combined weight
+/// beyond `f64`'s range reads back as [`f64::INFINITY`] from
+/// [`Evidence::weight`] rather than failing, and the log form stays exact
+/// for downstream log-domain consumers.
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct Evidence<T> {
     observation: T,
-    weight: f64,
+    log_weight: f64,
     provenance: Provenance,
+}
+
+#[cfg(feature = "serde")]
+impl<'de, T: serde::de::Deserialize<'de>> Deserialize<'de> for Evidence<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(serde::Deserialize)]
+        struct Shadow<T> {
+            observation: T,
+            log_weight: f64,
+            provenance: Provenance,
+        }
+        let shadow = Shadow::<T>::deserialize(deserializer)?;
+        Self::from_log_weight(shadow.observation, shadow.log_weight, shadow.provenance)
+            .map_err(serde::de::Error::custom)
+    }
 }
 
 impl<T> Evidence<T> {
@@ -516,7 +665,6 @@ impl<T> Evidence<T> {
     /// Weights above one support the hypothesis, below one undercut it.
     ///
     /// # Errors
-    /// [`InvalidProbability`]-style rejection via
     /// [`InvalidEvidenceWeight`] when the weight is not finite and positive.
     pub fn new(
         observation: T,
@@ -526,11 +674,34 @@ impl<T> Evidence<T> {
         if weight.is_finite() && weight > 0.0 {
             Ok(Self {
                 observation,
-                weight,
+                log_weight: weight.ln(),
                 provenance,
             })
         } else {
             Err(InvalidEvidenceWeight(weight))
+        }
+    }
+
+    /// Wraps an observation with its natural-log weight directly - the form
+    /// inference runtimes and probabilistic programs naturally produce.
+    ///
+    /// # Errors
+    /// [`InvalidEvidenceWeight`] when `log_weight` is not finite (`-inf`
+    /// would be a zero weight, `+inf` a weight no `f64` can scale to).
+    pub fn from_log_weight(
+        observation: T,
+        log_weight: f64,
+        provenance: Provenance,
+    ) -> Result<Self, InvalidEvidenceWeight> {
+        if log_weight.is_finite() {
+            Ok(Self {
+                observation,
+                log_weight,
+                provenance,
+            })
+        } else {
+            // Report the *linear* weight in the error, matching `new`.
+            Err(InvalidEvidenceWeight(log_weight.exp()))
         }
     }
 
@@ -540,10 +711,20 @@ impl<T> Evidence<T> {
         &self.observation
     }
 
-    /// The likelihood-style weight.
+    /// The likelihood-style weight, `exp(log_weight)`.
+    ///
+    /// A combined weight beyond `f64`'s range reads back as
+    /// [`f64::INFINITY`]; the exact value stays available through
+    /// [`Evidence::log_weight`].
     #[must_use]
-    pub const fn weight(&self) -> f64 {
-        self.weight
+    pub fn weight(&self) -> f64 {
+        self.log_weight.exp()
+    }
+
+    /// The natural-log weight - the exact, overflow-free representation.
+    #[must_use]
+    pub const fn log_weight(&self) -> f64 {
+        self.log_weight
     }
 
     /// Where this evidence came from.
@@ -553,30 +734,21 @@ impl<T> Evidence<T> {
     }
 
     /// Combines two independent pieces of evidence about the same hypothesis
-    /// by multiplying weights (keeping the first observation).
-    ///
-    /// # Errors
-    /// [`InvalidEvidenceWeight`] if the product overflows to a non-finite or
-    /// non-positive value.
-    pub fn combine(self, other: Self) -> Result<Self, InvalidEvidenceWeight> {
-        Self::new(
-            self.observation,
-            self.weight * other.weight,
-            self.provenance,
-        )
+    /// by adding log-weights (keeping the first observation).
+    #[must_use]
+    pub fn combine(self, other: Self) -> Self {
+        Self {
+            observation: self.observation,
+            log_weight: self.log_weight + other.log_weight,
+            provenance: self.provenance,
+        }
     }
 
-    /// Folds a sequence of independent evidence into `self`, multiplying
-    /// weights left to right (keeping this observation and provenance).
-    ///
-    /// # Errors
-    /// [`InvalidEvidenceWeight`] if any running product leaves the valid
-    /// domain.
-    pub fn combine_all(
-        self,
-        others: impl IntoIterator<Item = Self>,
-    ) -> Result<Self, InvalidEvidenceWeight> {
-        others.into_iter().try_fold(self, Evidence::combine)
+    /// Folds a sequence of independent evidence into `self`, adding
+    /// log-weights left to right (keeping this observation and provenance).
+    #[must_use]
+    pub fn combine_all(self, others: impl IntoIterator<Item = Self>) -> Self {
+        others.into_iter().fold(self, Evidence::combine)
     }
 }
 
@@ -895,13 +1067,13 @@ mod tests {
         assert_eq!(Probability::new(-0.1), Err(InvalidProbability(-0.1)));
         assert_eq!(Probability::new(1.1), Err(InvalidProbability(1.1)));
         assert!(Probability::new(f64::NAN).is_err());
-        assert_eq!(Probability::new_unchecked(0.3).complement().value(), 0.7);
+        assert_eq!(Probability::new_or_panic(0.3).complement().value(), 0.7);
     }
 
     #[test]
     fn probability_pools_linearly() {
-        let a = Probability::new_unchecked(0.2);
-        let b = Probability::new_unchecked(0.8);
+        let a = Probability::new_or_panic(0.2);
+        let b = Probability::new_or_panic(0.8);
         assert_eq!(a.pooled(b, 0.5).unwrap().value(), 0.5);
         assert!(a.pooled(b, -0.1).is_err());
     }
@@ -909,12 +1081,12 @@ mod tests {
     #[test]
     fn confidence_is_distinct_from_probability() {
         // Same range, different type: no implicit conversion exists.
-        let c = Confidence::new_unchecked(0.9);
+        let c = Confidence::new_or_panic(0.9);
         let p: Probability = c.into_probability();
         assert_eq!(p.value(), 0.9);
         assert!(Confidence::new(1.5).is_err());
-        assert!(c.meets(Confidence::new_unchecked(0.8)));
-        assert!(!c.meets(Confidence::new_unchecked(0.95)));
+        assert!(c.meets(Confidence::new_or_panic(0.8)));
+        assert!(!c.meets(Confidence::new_or_panic(0.95)));
     }
 
     #[test]
@@ -937,7 +1109,7 @@ mod tests {
         assert_eq!(dist.probability_of(&"purple"), Probability::ZERO);
         assert_eq!(
             dist.most_likely(),
-            (&"red", Probability::new_unchecked(0.5))
+            (&"red", Probability::new_or_panic(0.5))
         );
         // Entropy of (0.5, 0.25, 0.25) is 1.5 bits.
         assert!((dist.entropy_bits() - 1.5).abs() < 1e-9);
@@ -959,9 +1131,9 @@ mod tests {
 
     #[test]
     fn decisions_apply_explicit_policies() {
-        let strong = Score::new(42, Confidence::new_unchecked(0.9));
-        let weak = Score::new(42, Confidence::new_unchecked(0.3));
-        let threshold = Confidence::new_unchecked(0.8);
+        let strong = Score::new(42, Confidence::new_or_panic(0.9));
+        let weak = Score::new(42, Confidence::new_or_panic(0.3));
+        let threshold = Confidence::new_or_panic(0.8);
 
         let committed = Decision::from_score(strong, threshold);
         assert_eq!(committed.committed(), Some(&42));
@@ -980,11 +1152,79 @@ mod tests {
     fn evidence_combines_multiplicatively() {
         let a = Evidence::new("sighting", 2.0, Provenance::local()).unwrap();
         let b = Evidence::new("track", 3.0, Provenance::local()).unwrap();
-        let combined = a.combine(b).unwrap();
+        let combined = a.combine(b);
         assert_eq!(combined.observation(), &"sighting");
         assert_eq!(combined.weight(), 6.0);
+        assert_eq!(combined.log_weight(), 2.0f64.ln() + 3.0f64.ln());
         assert_eq!(combined.provenance().origin, "local");
         assert!(Evidence::new("x", 0.0, Provenance::local()).is_err());
         assert!(Evidence::new("x", -1.0, Provenance::local()).is_err());
+        // Log weights from a runtime land exactly; overflow shows up in the
+        // linear read-back, never as a failure.
+        let huge = Evidence::from_log_weight("x", 1.0e308, Provenance::local()).unwrap();
+        assert_eq!(huge.log_weight(), 1.0e308);
+        assert!(huge.weight().is_infinite());
+        // Weights whose *linear* product overflows combine exactly in log
+        // space: e^700 · e^700 has no f64 representation, but its log is
+        // 1400.
+        let big = Evidence::from_log_weight("x", 700.0, Provenance::local()).unwrap();
+        let fused = big.combine(Evidence::from_log_weight("x", 700.0, Provenance::local()).unwrap());
+        assert_eq!(fused.log_weight(), 1400.0);
+        assert!(fused.weight().is_infinite(), "linear read-back overflows");
+        let _ = huge;
+        assert!(Evidence::from_log_weight("x", f64::NEG_INFINITY, Provenance::local()).is_err());
+    }
+
+    #[test]
+    fn categorical_strict_constructor_rejects_bad_weights() {
+        use crate::CategoricalError;
+        assert_eq!(
+            Categorical::<&str>::new_strict([("a", 0.0), ("b", 1.0)]),
+            Err(CategoricalError::InvalidWeight(0.0))
+        );
+        assert_eq!(
+            Categorical::<&str>::new_strict([("a", -1.0)]),
+            Err(CategoricalError::InvalidWeight(-1.0))
+        );
+        assert!(Categorical::<&str>::new_strict([("a", f64::NAN)]).is_err());
+        assert_eq!(
+            Categorical::<&str>::new_strict(Vec::new()),
+            Err(CategoricalError::Empty)
+        );
+        // The tolerant constructor drops all of these silently instead.
+        assert!(Categorical::new([("a", 0.0), ("b", 1.0)]).is_ok());
+    }
+
+    #[test]
+    fn categorical_strict_constructor_rejects_overflow() {
+        let huge = [f64::MAX, f64::MAX];
+        assert_eq!(
+            Categorical::<&str>::new_strict([("a", huge[0]), ("b", huge[1])]),
+            Err(CategoricalError::Overflow)
+        );
+    }
+
+    #[test]
+    fn negative_zero_probability_normalizes() {
+        let p = Probability::new(-0.0).unwrap();
+        assert_eq!(p, Probability::ZERO);
+        assert_eq!(p.value(), 0.0);
+        // Sign bit is gone, not just numerically equal.
+        assert!(!p.value().is_sign_negative());
+    }
+
+    #[test]
+    fn confidence_orders_displays_and_defaults() {
+        let low = Confidence::NONE;
+        let mid = Confidence::new_or_panic(0.5);
+        let high = Confidence::FULL;
+        assert!(low < mid && mid < high);
+        assert_eq!(low, Confidence::default());
+        // Display renders the bare value (no implicit percent formatting).
+        assert_eq!(alloc::format!("{high}"), "1");
+        // Eq is sound because values are validated into [0, 1] (no NaN).
+        let a = Confidence::new_or_panic(0.3);
+        let b = Confidence::new_or_panic(0.3);
+        assert_eq!(a, b);
     }
 }

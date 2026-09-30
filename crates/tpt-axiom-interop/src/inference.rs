@@ -39,11 +39,15 @@ impl InferenceSample {
 
     /// Converts the sample into weighted [`Evidence`] about the value.
     ///
+    /// The log weight transfers *exactly* — no exponentiation, so no
+    /// overflow: a very strong sample stores its (large) log weight as-is
+    /// and reads back as an infinite linear weight instead of failing.
+    ///
     /// # Errors
-    /// [`InvalidEvidenceWeight`] when the exponentiated weight is not finite
-    /// and positive (log-weight overflow to infinity or `-inf` inputs).
+    /// [`InvalidEvidenceWeight`] when the log weight is not finite
+    /// (`-inf`/`+inf` inputs).
     pub fn to_evidence(&self) -> Result<Evidence<f64>, InvalidEvidenceWeight> {
-        Evidence::new(self.value, self.weight(), Provenance::local())
+        Evidence::from_log_weight(self.value, self.log_weight, Provenance::local())
     }
 
     /// Converts the sample into a [`Score`] under an externally supplied
@@ -68,27 +72,34 @@ mod tests {
         assert_eq!(evidence.observation(), &42.0);
         assert!((evidence.weight() - 3.0).abs() < 1e-12);
 
-        // Two equal samples fold to squared weight.
+        // Two equal samples fold to squared weight (log addition).
         let combined = sample
             .to_evidence()
             .unwrap()
-            .combine(sample.to_evidence().unwrap())
-            .unwrap();
+            .combine(sample.to_evidence().unwrap());
         assert!((combined.weight() - 9.0).abs() < 1e-12);
     }
 
     #[test]
-    fn overflowing_log_weights_are_rejected_not_clamped() {
-        let sample = InferenceSample::new(1.0, 1.0e308);
-        assert!(sample.to_evidence().is_err());
+    fn huge_log_weights_transfer_exactly() {
+        // A very strong sample (past ln(f64::MAX) ~ 709.78): the log
+        // weight is finite, so it transfers exactly and only the *linear*
+        // read-back overflows.
+        let sample = InferenceSample::new(1.0, 710.0);
+        let evidence = sample.to_evidence().unwrap();
+        assert_eq!(evidence.log_weight(), 710.0);
+        assert!(evidence.weight().is_infinite());
+        // Non-finite log weights are still rejected outright.
         let sample = InferenceSample::new(1.0, f64::NEG_INFINITY);
+        assert!(sample.to_evidence().is_err());
+        let sample = InferenceSample::new(1.0, f64::INFINITY);
         assert!(sample.to_evidence().is_err());
     }
 
     #[test]
     fn scores_need_external_confidence() {
         let sample = InferenceSample::new(7.0, 0.0);
-        let score = sample.to_score(Confidence::new_unchecked(0.8));
+        let score = sample.to_score(Confidence::new_or_panic(0.8));
         assert_eq!(score.value(), &7.0);
         assert_eq!(score.confidence().value(), 0.8);
     }

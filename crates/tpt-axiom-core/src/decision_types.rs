@@ -249,6 +249,28 @@ pub struct Calibration {
 }
 
 impl Calibration {
+    /// Builds a validated [`Calibration`]: the checked-constructor form of
+    /// the raw struct literal (whose public fields bypass validation and
+    /// remain for compatibility - prefer this when constructing).
+    ///
+    /// # Errors
+    /// [`crate::InvalidProbability`] when `expected_calibration_error` is
+    /// outside `[0, 1]` or NaN.
+    pub fn new(
+        method: Option<String>,
+        reference: Option<String>,
+        expected_calibration_error: Option<f64>,
+    ) -> Result<Self, crate::InvalidProbability> {
+        if let Some(ece) = expected_calibration_error {
+            crate::Probability::new(ece)?;
+        }
+        Ok(Self {
+            method,
+            reference,
+            expected_calibration_error,
+        })
+    }
+
     /// Validates the summary statistic, when present.
     ///
     /// # Errors
@@ -326,22 +348,22 @@ mod tests {
     #[test]
     fn ranking_orders_by_confidence() {
         let ranking = Ranking::new(vec![
-            Score::new("c", Confidence::new_unchecked(0.3)),
-            Score::new("a", Confidence::new_unchecked(0.9)),
-            Score::new("b", Confidence::new_unchecked(0.6)),
+            Score::new("c", Confidence::new_or_panic(0.3)),
+            Score::new("a", Confidence::new_or_panic(0.9)),
+            Score::new("b", Confidence::new_or_panic(0.6)),
         ]);
         assert_eq!(ranking.best().unwrap().value(), &"a");
         assert_eq!(ranking.candidates().len(), 3);
         // Above threshold commits to the best; below abstains.
         assert_eq!(
-            ranking.decide(Confidence::new_unchecked(0.8)),
+            ranking.decide(Confidence::new_or_panic(0.8)),
             Decision::Commit {
                 value: "a",
-                confidence: Confidence::new_unchecked(0.9)
+                confidence: Confidence::new_or_panic(0.9)
             }
         );
         assert_eq!(
-            ranking.decide(Confidence::new_unchecked(0.95)),
+            ranking.decide(Confidence::new_or_panic(0.95)),
             Decision::Abstain {
                 reason: AR::InsufficientConfidence
             }
@@ -358,8 +380,8 @@ mod tests {
     #[test]
     fn multi_label_decides_per_label() {
         let labels = MultiLabelDecision::new()
-            .with_label("spam", true, Confidence::new_unchecked(0.9))
-            .with_label("urgent", false, Confidence::new_unchecked(0.7))
+            .with_label("spam", true, Confidence::new_or_panic(0.9))
+            .with_label("urgent", false, Confidence::new_or_panic(0.7))
             .with(
                 "legal",
                 Decision::Abstain {
@@ -399,14 +421,14 @@ mod tests {
     fn categorical_decide_uses_explicit_policy() {
         let dist = Categorical::new([("red", 3.0), ("blue", 1.0)]).unwrap();
         assert_eq!(
-            dist.decide(Confidence::new_unchecked(0.7)),
+            dist.decide(Confidence::new_or_panic(0.7)),
             Decision::Commit {
                 value: "red",
-                confidence: Confidence::new_unchecked(0.75)
+                confidence: Confidence::new_or_panic(0.75)
             }
         );
         assert_eq!(
-            dist.decide(Confidence::new_unchecked(0.9)),
+            dist.decide(Confidence::new_or_panic(0.9)),
             Decision::Abstain {
                 reason: AR::InsufficientConfidence
             }
@@ -415,7 +437,7 @@ mod tests {
 
     #[test]
     fn binary_and_records() {
-        let yes: BinaryDecision = Decision::yes(Confidence::new_unchecked(0.9));
+        let yes: BinaryDecision = Decision::yes(Confidence::new_or_panic(0.9));
         assert_eq!(yes.committed(), Some(&true));
         let record = DecisionRecord::new(yes, Provenance::local());
         assert_eq!(record.decision().committed(), Some(&true));

@@ -4,10 +4,10 @@
 //! `tpt-augur` writes variables as distributions and runs Bayesian
 //! inference; Axiom propagates uncertainty through arithmetic. The bridge is
 //! **moment matching**: every Augur distribution has closed-form mean and
-//! variance, so [`to_fuzzy`] is exact for `Normal` (the only family Axiom's
-//! first-order propagation models precisely) and mean/variance-exact for the
-//! rest — higher moments are deliberately dropped, which is the right lossy
-//! boundary for feeding sampled values into uncertainty arithmetic.
+//! variance, so [`to_fuzzy_approx`] is exact for `Normal` (the only family
+//! Axiom's first-order propagation models precisely) and mean/variance-exact
+//! for the rest — higher moments are deliberately dropped, which is why the
+//! conversion carries the `_approx` name.
 //!
 //! Conversions validate Augur's parameters (a `Normal(-, -1)` is a compile
 //! artifact until sampled) and fail loudly on out-of-domain values.
@@ -66,7 +66,7 @@ fn require(cond: bool, dist: &'static str, reason: &str) -> Result<(), Conversio
 ///
 /// Exact for `Normal` (Axiom's `Distribution::Gaussian` *is* that family);
 /// `Bernoulli` rides the dedicated [`to_bernoulli`]. Other families have no
-/// exact Axiom representation — use [`to_fuzzy`] for their moments.
+/// exact Axiom representation — use [`to_fuzzy_approx`] for their moments.
 ///
 /// # Errors
 /// [`ConversionError::InvalidParameter`] when the parameters are
@@ -74,27 +74,41 @@ fn require(cond: bool, dist: &'static str, reason: &str) -> Result<(), Conversio
 pub fn to_distribution(dist: Dist) -> Result<Distribution<f64>, ConversionError> {
     match dist {
         Dist::Normal { mu, sigma } => {
-            require(
-                sigma.is_finite() && sigma > 0.0,
-                "Normal",
-                "sigma must be > 0",
-            )?;
-            Ok(Distribution::gaussian(mu, sigma * sigma))
+            require(sigma.is_finite() && sigma >= 0.0, "Normal", "sigma must be >= 0")?;
+            // A degenerate (zero-sigma) Normal *is* a point mass: map it to
+            // the exact Axiom representation instead of erroring, so a
+            // round trip through `from_distribution` is lossless.
+            let variance = sigma * sigma;
+            if variance == 0.0 {
+                return Ok(Distribution::Constant(mu));
+            }
+            if !variance.is_finite() {
+                return Err(ConversionError::InvalidParameter {
+                    dist: "Normal",
+                    reason: String::from("sigma^2 overflows to infinity"),
+                });
+            }
+            Ok(Distribution::gaussian(mu, variance))
         }
-        other => Ok(to_fuzzy(other)?.into()),
+        other => Ok(to_fuzzy_approx(other)?.into()),
     }
 }
 
 /// Moment-matches any Augur distribution into a [`Fuzzy<f64>`].
 ///
-/// The mean and variance are the distribution's exact closed-form moments;
-/// only the higher moments are lost. `Normal` is information-preserving.
+/// The name says *approx* on purpose: only `Normal` is
+/// information-preserving. Every other family keeps its exact closed-form
+/// mean and variance and **deliberately drops its higher moments** - a
+/// Gamma and a Gaussian with matched moments are different distributions,
+/// and after this conversion Axiom only ever sees the Gaussian-shaped
+/// summary. Callers that need the distinction should keep the original
+/// `Dist` and use this only at the arithmetic boundary.
 ///
 /// # Errors
 /// [`ConversionError::InvalidParameter`] when the parameters are
 /// out-of-domain, [`ConversionError::InvalidProbability`] if the matched
 /// moments are not finite.
-pub fn to_fuzzy(dist: Dist) -> Result<Fuzzy<f64>, ConversionError> {
+pub fn to_fuzzy_approx(dist: Dist) -> Result<Fuzzy<f64>, ConversionError> {
     let (mean, variance) = match dist {
         Dist::Normal { mu, sigma } => {
             require(
@@ -190,12 +204,13 @@ pub fn to_fuzzy(dist: Dist) -> Result<Fuzzy<f64>, ConversionError> {
 }
 
 /// Converts an Augur distribution into an [`Uncertain`] estimate: the same
-/// moment matching as [`to_fuzzy`], wrapped with its mean as the estimate.
+/// moment matching as [`to_fuzzy_approx`], wrapped with its mean as the
+/// estimate.
 ///
 /// # Errors
-/// Same as [`to_fuzzy`].
-pub fn to_uncertain(dist: Dist) -> Result<Uncertain<f64>, ConversionError> {
-    let fuzzy = to_fuzzy(dist)?;
+/// Same as [`to_fuzzy_approx`].
+pub fn to_uncertain_approx(dist: Dist) -> Result<Uncertain<f64>, ConversionError> {
+    let fuzzy = to_fuzzy_approx(dist)?;
     Ok(Uncertain::Estimated(fuzzy))
 }
 
@@ -214,34 +229,49 @@ pub fn to_bernoulli(dist: Dist) -> Result<Bernoulli, ConversionError> {
     }
 }
 
-/// Converts an Axiom Gaussian back into an Augur `Dist::Normal` (the exact
-/// inverse of the `Normal` arm of [`to_distribution`]).
+/// Converts an Axiom distribution back into an Augur `Dist::Normal` (the
+/// exact inverse of the `Normal` arm of [`to_distribution`]: a
+/// zero-variance Gaussian/`Constant` becomes a zero-sigma `Normal`).
 ///
-/// `Constant` distributions become zero-sigma normals; other families have
-/// no faithful Augur encoding because Axiom's `Distribution` is
-/// Gaussian-shaped by design.
-#[must_use]
-pub fn from_distribution(dist: &Distribution<f64>) -> Dist {
-    match *dist {
-        Distribution::Gaussian { mean, variance } => Dist::Normal {
-            mu: mean,
-            sigma: variance.max(0.0).sqrt(),
-        },
-        Distribution::Constant(value) => Dist::Normal {
-            mu: value,
-            sigma: 0.0,
-        },
+/// # Errors
+/// [`ConversionError::InvalidParameter`] when the moments are not finite or
+/// the variance is negative or NaN. (The previous `variance.max(0.0)`
+/// silently turned a NaN variance into a zero-sigma normal - swallowing the
+/// invalid state instead of reporting it.)
+pub fn from_distribution(dist: &Distribution<f64>) -> Result<Dist, ConversionError> {
+    let (mu, variance) = match *dist {
+        Distribution::Gaussian { mean, variance } => (mean, variance),
+        Distribution::Constant(value) => (value, 0.0),
+    };
+    if !mu.is_finite() || !variance.is_finite() || variance < 0.0 {
+        return Err(ConversionError::InvalidParameter {
+            dist: "Normal",
+            reason: String::from("moments must be finite with a non-negative variance"),
+        });
     }
+    Ok(Dist::Normal {
+        mu,
+        sigma: variance.sqrt(),
+    })
 }
 
 /// Converts a [`Fuzzy`] estimate into an Augur `Dist::Normal` with the same
 /// mean and standard deviation.
-#[must_use]
-pub fn from_fuzzy(fuzzy: Fuzzy<f64>) -> Dist {
-    Dist::Normal {
-        mu: fuzzy.mean(),
-        sigma: fuzzy.variance().max(0.0).sqrt(),
+///
+/// # Errors
+/// [`ConversionError::InvalidParameter`] when the moments are not finite or
+/// the variance is negative or NaN.
+pub fn from_fuzzy(fuzzy: Fuzzy<f64>) -> Result<Dist, ConversionError> {
+    if !fuzzy.mean().is_finite() || !fuzzy.variance().is_finite() || fuzzy.variance() < 0.0 {
+        return Err(ConversionError::InvalidParameter {
+            dist: "Normal",
+            reason: String::from("moments must be finite with a non-negative variance"),
+        });
     }
+    Ok(Dist::Normal {
+        mu: fuzzy.mean(),
+        sigma: fuzzy.variance().sqrt(),
+    })
 }
 
 const fn family_name(dist: &Dist) -> &'static str {
@@ -270,10 +300,10 @@ mod tests {
             mu: 10.5,
             sigma: 2.0,
         };
-        let fuzzy = to_fuzzy(dist).unwrap();
+        let fuzzy = to_fuzzy_approx(dist).unwrap();
         assert_eq!(fuzzy.mean(), 10.5);
         assert_eq!(fuzzy.variance(), 4.0);
-        match from_fuzzy(fuzzy) {
+        match from_fuzzy(fuzzy).unwrap() {
             Dist::Normal { mu, sigma } => {
                 assert_eq!(mu, 10.5);
                 assert_eq!(sigma, 2.0);
@@ -290,13 +320,46 @@ mod tests {
     }
 
     #[test]
+    fn zero_sigma_normal_roundtrips_through_constant() {
+        // sigma == 0 is a point mass: accepted, mapped to Constant, and the
+        // round trip back is lossless (previously an error).
+        let point = Dist::Normal { mu: 7.5, sigma: 0.0 };
+        let dist = to_distribution(point).unwrap();
+        assert_eq!(dist, Distribution::Constant(7.5));
+        match from_distribution(&dist).unwrap() {
+            Dist::Normal { mu, sigma } => {
+                assert_eq!(mu, 7.5);
+                assert_eq!(sigma, 0.0);
+            }
+            other => panic!("expected Normal, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn huge_sigma_is_caught_after_squaring() {
+        // sigma = 1e200 is finite, but sigma^2 overflows: the conversion
+        // must reject it instead of storing an infinite variance.
+        let err = to_distribution(Dist::Normal { mu: 0.0, sigma: 1e200 }).unwrap_err();
+        assert!(err.to_string().contains("overflows"), "{err}");
+    }
+
+    #[test]
+    fn from_distribution_rejects_nan_instead_of_swallowing() {
+        // A NaN variance used to be flattened to a zero-sigma normal by
+        // `variance.max(0.0)`; now it is reported.
+        let bad = Distribution::Gaussian { mean: 0.0, variance: f64::NAN };
+        assert!(from_distribution(&bad).is_err());
+        assert!(from_fuzzy(Fuzzy::new(f64::NAN, 1.0)).is_err());
+    }
+
+    #[test]
     fn closed_form_moments_match_textbook_values() {
         // Uniform(0, 12): mean 6, variance 144/12 = 12.
-        let u = to_fuzzy(Dist::Uniform { lo: 0.0, hi: 12.0 }).unwrap();
+        let u = to_fuzzy_approx(Dist::Uniform { lo: 0.0, hi: 12.0 }).unwrap();
         assert_eq!(u.mean(), 6.0);
         assert_eq!(u.variance(), 12.0);
         // Gamma(k=2, rate=4): mean 0.5, variance 2/16 = 0.125.
-        let g = to_fuzzy(Dist::Gamma {
+        let g = to_fuzzy_approx(Dist::Gamma {
             shape: 2.0,
             rate: 4.0,
         })
@@ -304,14 +367,14 @@ mod tests {
         assert_eq!(g.mean(), 0.5);
         assert_eq!(g.variance(), 0.125);
         // Beta(2, 2): mean 0.5, variance 4/(16*5) = 0.05.
-        let b = to_fuzzy(Dist::Beta { a: 2.0, b: 2.0 }).unwrap();
+        let b = to_fuzzy_approx(Dist::Beta { a: 2.0, b: 2.0 }).unwrap();
         assert_eq!(b.variance(), 0.05);
         // Poisson(9): mean = variance = 9.
-        let p = to_fuzzy(Dist::Poisson { rate: 9.0 }).unwrap();
+        let p = to_fuzzy_approx(Dist::Poisson { rate: 9.0 }).unwrap();
         assert_eq!(p.mean(), 9.0);
         assert_eq!(p.variance(), 9.0);
         // Binomial(n=10, p=0.3): mean 3, variance 2.1.
-        let bi = to_fuzzy(Dist::Binomial { n: 10.0, p: 0.3 }).unwrap();
+        let bi = to_fuzzy_approx(Dist::Binomial { n: 10.0, p: 0.3 }).unwrap();
         assert!((bi.mean() - 3.0).abs() < 1e-12);
         assert!((bi.variance() - 2.1).abs() < 1e-12);
     }
@@ -319,24 +382,26 @@ mod tests {
     #[test]
     fn invalid_parameters_are_rejected() {
         assert!(
-            to_fuzzy(Dist::Normal {
+            to_fuzzy_approx(Dist::Normal {
                 mu: 0.0,
                 sigma: -1.0
             })
             .is_err()
         );
         assert!(
-            to_fuzzy(Dist::Gamma {
+            to_fuzzy_approx(Dist::Gamma {
                 shape: 0.0,
                 rate: 1.0
             })
             .is_err()
         );
-        assert!(to_fuzzy(Dist::Uniform { lo: 5.0, hi: 5.0 }).is_err());
-        assert!(to_fuzzy(Dist::Bernoulli { p: 1.5 }).is_err());
+        assert!(to_fuzzy_approx(Dist::Uniform { lo: 5.0, hi: 5.0 }).is_err());
+        assert!(to_fuzzy_approx(Dist::Bernoulli { p: 1.5 }).is_err());
+        // A *negative* sigma is still rejected; only exactly-zero maps to a
+        // point mass.
         let err = to_distribution(Dist::Normal {
             mu: 0.0,
-            sigma: 0.0,
+            sigma: -1.0,
         })
         .unwrap_err();
         assert!(err.to_string().contains("sigma"), "{err}");
@@ -357,7 +422,7 @@ mod tests {
 
     #[test]
     fn uncertain_wraps_the_estimate() {
-        let u = to_uncertain(Dist::Exponential { rate: 2.0 }).unwrap();
+        let u = to_uncertain_approx(Dist::Exponential { rate: 2.0 }).unwrap();
         match u {
             Uncertain::Estimated(estimate) => {
                 assert_eq!(estimate.mean(), 0.5);
@@ -370,7 +435,7 @@ mod tests {
     #[test]
     fn axiom_gaussians_map_back_to_augur() {
         let dist = Distribution::<f64>::gaussian(3.0, 4.0);
-        match from_distribution(&dist) {
+        match from_distribution(&dist).unwrap() {
             Dist::Normal { mu, sigma } => {
                 assert_eq!(mu, 3.0);
                 assert_eq!(sigma, 2.0);

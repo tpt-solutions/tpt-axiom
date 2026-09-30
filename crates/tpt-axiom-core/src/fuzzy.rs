@@ -9,8 +9,9 @@ use num_traits::{Float, FromPrimitive};
 /// variance (Gaussian / first-order error model).
 ///
 /// Arithmetic on [`Fuzzy<T>`] propagates the uncertainty automatically using
-/// the standard closed-form error-propagation rules, assuming that the
-/// operands are statistically independent:
+/// the standard closed-form error-propagation rules. **The operands are
+/// assumed statistically independent** — there is no covariance tracking —
+/// so correlated inputs are silently treated as independent:
 ///
 /// | Operation        | Mean                     | Variance                        |
 /// |------------------|--------------------------|---------------------------------|
@@ -21,12 +22,22 @@ use num_traits::{Float, FromPrimitive};
 /// | `a / c`          | `m_a / c`                | `v_a / c²`                      |
 /// | `c / a`          | `c / m_a`                | `c² v_a / m_a⁴`                 |
 ///
-/// These are exactly the first-order (Gaussian) propagation formulas, matching
-/// the results a Taylor expansion of the underlying deterministic function
-/// yields. The same rules are what Phase 3's formal-verification bridge audits
-/// against `tpt-telos`.
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+/// The `+`/`-`/`*` rows are exact under the independence + Gaussian model;
+/// the `a / b` row is the **delta-method (first-order) approximation**, not
+/// an identity. Two consequences worth internalizing:
+///
+/// * `x - x` has variance `2v` (twice the input's), not zero — the model has
+///   no way to know the two operands are the *same* uncertain quantity.
+/// * Degenerate arithmetic is IEEE-faithful rather than panicking: dividing
+///   by a zero-mean value yields an infinite (or NaN) variance through the
+///   internal unchecked constructor; use [`Fuzzy::checked_div`] or
+///   [`Fuzzy::checked_fuse`] when a validated result is required.
+///
+/// Not `Eq`: float-backed (NaN means are reachable through the degenerate
+/// arithmetic paths), so `Eq`'s reflexivity would be unsound.
+#[allow(clippy::derive_partial_eq_without_eq)] // deliberate: float backing
+#[derive(Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct Fuzzy<T> {
     mean: T,
     variance: T,
@@ -46,6 +57,34 @@ impl<T: Float> Fuzzy<T> {
             "variance must be non-negative and finite"
         );
         Self { mean, variance }
+    }
+
+    /// The internal constructor used by the operator impls: no validation,
+    /// so IEEE degenerate results (infinite/NaN variance from division by a
+    /// zero-mean estimate) surface as values instead of panics.
+    #[inline]
+    #[allow(clippy::missing_const_for_fn)] // plain fn: no benefit to const here
+    fn new_raw(mean: T, variance: T) -> Self {
+        Self { mean, variance }
+    }
+
+    /// Like the `/` operator, but rejects the degenerate cases the
+    /// propagation formulas cannot express: a zero or non-finite divisor
+    /// mean, or a non-finite resulting variance.
+    ///
+    /// # Errors
+    /// Returns `rhs.mean()` (the rejected divisor) when the division is
+    /// degenerate.
+    pub fn checked_div(&self, rhs: &Self) -> Result<Self, T> {
+        let mean = self.mean / rhs.mean;
+        let b2 = rhs.mean * rhs.mean;
+        let b4 = b2 * b2;
+        let variance = (self.variance * b2 + rhs.variance * self.mean * self.mean) / b4;
+        if rhs.mean.is_zero() || !rhs.mean.is_finite() || !variance.is_finite() {
+            Err(rhs.mean)
+        } else {
+            Ok(Self::new_raw(mean, variance))
+        }
     }
 
     /// A deterministic (certain) value, i.e. a `Fuzzy` with zero variance.
@@ -95,14 +134,22 @@ impl<T: Float> Fuzzy<T> {
             confidence > T::zero() && confidence < T::one(),
             "confidence level must lie in (0, 1)"
         );
-        let tail = (T::one() + confidence) / (T::one() + T::one());
-        let z = T::from_f64(crate::quants::norm_ppf(tail.to_f64().unwrap())).unwrap();
+        // `0.5 + c/2` never rounds up to exactly 1.0 until the last few
+        // ulps below one (unlike `(1 + c)/2`, which does from c >= 0.9);
+        // the clamp is the belt-and-braces for those last ulps.
+        let tail = T::from_f64(0.5).unwrap() + confidence / (T::one() + T::one());
+        let tail = tail.to_f64().unwrap().min(1.0 - f64::EPSILON);
+        let z = T::from_f64(crate::quants::norm_ppf(tail)).unwrap();
         let half = z * self.standard_deviation();
         (self.mean - half, self.mean + half)
     }
 
     /// The z-score of a candidate `value`: how many standard deviations it
     /// lies above the mean.
+    ///
+    /// A zero-variance value has no spread to score against: the result is
+    /// ±infinity (or NaN for `value == mean`, via IEEE `0/0`), never a
+    /// meaningful distance.
     #[inline]
     pub fn z_score(&self, value: T) -> T {
         (value - self.mean) / self.standard_deviation()
@@ -115,15 +162,55 @@ impl<T: Float> Fuzzy<T> {
     /// v = (v_a * v_b) / (v_a + v_b)
     /// m = (m_a * v_b + m_b * v_a) / (v_a + v_b)
     /// ```
+    ///
+    /// Degenerate inputs (both variances zero) follow IEEE semantics through
+    /// the unchecked constructor (`0/0` variance); use [`Self::checked_fuse`]
+    /// to reject them.
     #[inline]
     #[must_use]
     pub fn fuse(&self, other: &Self) -> Self {
         let v_sum = self.variance + other.variance;
         let variance = self.variance * other.variance / v_sum;
         let mean = (self.mean * other.variance + other.mean * self.variance) / v_sum;
-        Self { mean, variance }
+        Self::new_raw(mean, variance)
+    }
+
+    /// Like [`Self::fuse`], but rejects inputs that make the combination
+    /// degenerate: both variances zero (nothing to fuse), a non-finite
+    /// variance sum, or a non-finite result.
+    ///
+    /// # Errors
+    /// Returns `Err` with no payload when the fusion is degenerate.
+    pub fn checked_fuse(&self, other: &Self) -> Result<Self, FuseError> {
+        let v_sum = self.variance + other.variance;
+        if (self.variance.is_zero() && other.variance.is_zero())
+            || !v_sum.is_finite()
+        {
+            return Err(FuseError);
+        }
+        let variance = self.variance * other.variance / v_sum;
+        let mean = (self.mean * other.variance + other.mean * self.variance) / v_sum;
+        if !variance.is_finite() || !mean.is_finite() {
+            return Err(FuseError);
+        }
+        Ok(Self::new_raw(mean, variance))
     }
 }
+
+/// A degenerate fusion: both inputs were certain (zero variance), or the
+/// combination did not stay finite.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FuseError;
+
+impl fmt::Display for FuseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(
+            "cannot fuse: both variances were zero or the combination was not finite",
+        )
+    }
+}
+
+impl core::error::Error for FuseError {}
 
 impl<T: Float> From<T> for Fuzzy<T> {
     #[inline]
@@ -156,7 +243,7 @@ impl<T: Float> Add for Fuzzy<T> {
     type Output = Self;
     #[inline]
     fn add(self, rhs: Self) -> Self::Output {
-        Self::new(self.mean + rhs.mean, self.variance + rhs.variance)
+        Self::new_raw(self.mean + rhs.mean, self.variance + rhs.variance)
     }
 }
 
@@ -172,7 +259,7 @@ impl<T: Float> Add<T> for Fuzzy<T> {
     type Output = Self;
     #[inline]
     fn add(self, rhs: T) -> Self::Output {
-        Self::new(self.mean + rhs, self.variance)
+        Self::new_raw(self.mean + rhs, self.variance)
     }
 }
 
@@ -187,7 +274,7 @@ impl<T: Float> Add<T> for &Fuzzy<T> {
     type Output = Fuzzy<T>;
     #[inline]
     fn add(self, rhs: T) -> Self::Output {
-        Fuzzy::new(self.mean + rhs, self.variance)
+        Fuzzy::new_raw(self.mean + rhs, self.variance)
     }
 }
 
@@ -196,11 +283,15 @@ impl<T: Float> Add<T> for &Fuzzy<T> {
 // before the local `Fuzzy<T>`), so they are generated for the float primitives.
 
 /// `(a - b).mean = a.mean - b.mean`, variance still adds.
+///
+/// Note this models *independent* errors: `x - x` has variance `2v`, not
+/// zero, because the model cannot see that both operands are the same
+/// quantity.
 impl<T: Float> Sub for Fuzzy<T> {
     type Output = Self;
     #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
-        Self::new(self.mean - rhs.mean, self.variance + rhs.variance)
+        Self::new_raw(self.mean - rhs.mean, self.variance + rhs.variance)
     }
 }
 
@@ -215,7 +306,7 @@ impl<T: Float> Sub<T> for Fuzzy<T> {
     type Output = Self;
     #[inline]
     fn sub(self, rhs: T) -> Self::Output {
-        Self::new(self.mean - rhs, self.variance)
+        Self::new_raw(self.mean - rhs, self.variance)
     }
 }
 
@@ -230,7 +321,7 @@ impl<T: Float> Neg for Fuzzy<T> {
     type Output = Self;
     #[inline]
     fn neg(self) -> Self::Output {
-        Self::new(-self.mean, self.variance)
+        Self::new_raw(-self.mean, self.variance)
     }
 }
 
@@ -238,7 +329,7 @@ impl<T: Float> Neg for &Fuzzy<T> {
     type Output = Fuzzy<T>;
     #[inline]
     fn neg(self) -> Self::Output {
-        Fuzzy::new(-self.mean, self.variance)
+        Fuzzy::new_raw(-self.mean, self.variance)
     }
 }
 
@@ -252,7 +343,7 @@ impl<T: Float> Mul for Fuzzy<T> {
         let variance = self.variance * rhs.variance
             + self.variance * rhs.mean * rhs.mean
             + rhs.variance * self.mean * self.mean;
-        Self::new(mean, variance)
+        Self::new_raw(mean, variance)
     }
 }
 
@@ -268,7 +359,7 @@ impl<T: Float> Mul<T> for Fuzzy<T> {
     type Output = Self;
     #[inline]
     fn mul(self, rhs: T) -> Self::Output {
-        Self::new(self.mean * rhs, self.variance * rhs * rhs)
+        Self::new_raw(self.mean * rhs, self.variance * rhs * rhs)
     }
 }
 
@@ -283,12 +374,15 @@ impl<T: Float> Mul<T> for &Fuzzy<T> {
     type Output = Fuzzy<T>;
     #[inline]
     fn mul(self, rhs: T) -> Self::Output {
-        Fuzzy::new(self.mean * rhs, self.variance * rhs * rhs)
+        Fuzzy::new_raw(self.mean * rhs, self.variance * rhs * rhs)
     }
 }
 
 /// Division mean is the quotient of means (requires `rhs.mean != 0`); the
-/// variance rule is the delta-method result for independent operands.
+/// variance rule is the **delta-method approximation** for independent
+/// operands — an approximation, not an identity. Degenerate divisors produce
+/// IEEE results (infinite/NaN variance) instead of panicking; see
+/// [`Fuzzy::checked_div`] for the validated form.
 impl<T: Float> Div for Fuzzy<T> {
     type Output = Self;
     #[inline]
@@ -297,7 +391,7 @@ impl<T: Float> Div for Fuzzy<T> {
         let b2 = rhs.mean * rhs.mean;
         let b4 = b2 * b2;
         let variance = (self.variance * b2 + rhs.variance * self.mean * self.mean) / b4;
-        Self::new(mean, variance)
+        Self::new_raw(mean, variance)
     }
 }
 
@@ -312,7 +406,7 @@ impl<T: Float> Div<T> for Fuzzy<T> {
     type Output = Self;
     #[inline]
     fn div(self, rhs: T) -> Self::Output {
-        Self::new(self.mean / rhs, self.variance / (rhs * rhs))
+        Self::new_raw(self.mean / rhs, self.variance / (rhs * rhs))
     }
 }
 
@@ -327,7 +421,7 @@ impl<T: Float> Div<T> for &Fuzzy<T> {
     type Output = Fuzzy<T>;
     #[inline]
     fn div(self, rhs: T) -> Self::Output {
-        Fuzzy::new(self.mean / rhs, self.variance / (rhs * rhs))
+        Fuzzy::new_raw(self.mean / rhs, self.variance / (rhs * rhs))
     }
 }
 
@@ -350,7 +444,7 @@ macro_rules! impl_scalar_ops {
                 type Output = Fuzzy<$t>;
                 #[inline]
                 fn sub(self, rhs: Fuzzy<$t>) -> Self::Output {
-                    Fuzzy::new(self - rhs.mean(), rhs.variance())
+                    Fuzzy::new_raw(self - rhs.mean(), rhs.variance())
                 }
             }
 
@@ -369,7 +463,7 @@ macro_rules! impl_scalar_ops {
                     let mean = self / rhs.mean();
                     let m2 = rhs.mean() * rhs.mean();
                     let m4 = m2 * m2;
-                    Fuzzy::new(mean, self * self * rhs.variance() / m4)
+                    Fuzzy::new_raw(mean, self * self * rhs.variance() / m4)
                 }
             }
         )*
@@ -377,6 +471,35 @@ macro_rules! impl_scalar_ops {
 }
 
 impl_scalar_ops!(f32, f64);
+
+#[cfg(feature = "serde")]
+mod serde_impls {
+    //! Deserialization re-validates the variance invariant: a serde payload
+    //! is untrusted input, so a negative or NaN variance can never re-enter
+    //! the type system through a deserializer.
+
+    use super::{Float, Fuzzy};
+    use serde::de::Error as DeError;
+    use serde::{Deserialize, Deserializer};
+
+    impl<'de, T: Deserialize<'de> + Float> Deserialize<'de> for Fuzzy<T> {
+        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            #[derive(Deserialize)]
+            struct Shadow<T> {
+                mean: T,
+                variance: T,
+            }
+            let shadow = Shadow::<T>::deserialize(deserializer)?;
+            if shadow.variance.is_nan() || shadow.variance < T::zero() {
+                Err(DeError::custom(
+                    "variance must be non-negative and finite",
+                ))
+            } else {
+                Ok(Fuzzy::new_raw(shadow.mean, shadow.variance))
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -546,5 +669,59 @@ mod tests {
         // P(value in (40, 60)) should be ~1 - 2*Phi(-2) under the Gaussian model.
         let p_in = norm_cdf(2.0) - norm_cdf(-2.0);
         assert!((p_in - 0.9545).abs() < 1e-3);
+    }
+
+    #[test]
+    fn degenerate_division_does_not_panic() {
+        // Dividing by a zero-mean estimate: IEEE semantics through the
+        // unchecked internal constructor, not a panic.
+        let a = Fuzzy::new(1.0_f64, 1.0);
+        let zero_mean = Fuzzy::new(0.0_f64, 1.0);
+        let q = a / zero_mean;
+        assert!(!q.variance().is_finite(), "0/0 variance is IEEE, not a panic");
+
+        // The checked form names the rejected divisor.
+        assert_eq!(a.checked_div(&zero_mean), Err(0.0));
+        // (v_a m_b^2 + v_b m_a^2)/m_b^4 = (1*4 + 1*1)/16 = 0.3125.
+        assert_eq!(
+            a.checked_div(&Fuzzy::new(2.0, 1.0)),
+            Ok(Fuzzy::new(0.5, 0.3125))
+        );
+    }
+
+    #[test]
+    fn inf_variance_arithmetic_does_not_panic() {
+        let inf_var = Fuzzy::new(1.0_f64, f64::INFINITY);
+        let x = Fuzzy::new(1.0_f64, 0.0);
+        // 0 * inf variance → NaN in the product rule; the operators produce
+        // the IEEE value instead of panicking on a NaN variance.
+        let product = x * inf_var;
+        assert!(product.variance().is_nan());
+        let sum = x + inf_var;
+        assert!(sum.variance().is_infinite());
+    }
+
+    #[test]
+    fn fuse_degenerate_variants() {
+        let a = Fuzzy::new(10.0_f64, 1.0);
+        let b = Fuzzy::new(12.0_f64, 3.0);
+        assert!(a.checked_fuse(&b).is_ok());
+        // Both variances zero: fuse follows IEEE (0/0); checked_fuse rejects.
+        let c = Fuzzy::constant(1.0_f64);
+        let _ = c.fuse(&c); // must not panic
+        assert_eq!(c.checked_fuse(&c), Err(crate::FuseError));
+    }
+
+    #[test]
+    fn confidence_interval_tolerates_extreme_confidence() {
+        let x = Fuzzy::new(10.0_f64, 4.0);
+        // confidence so close to 1 that (1 + c)/2 would round to exactly
+        // 1.0 and panic inside norm_ppf; 0.5 + c/2 never does.
+        let c = 1.0 - 1e-16;
+        let (lo, hi) = x.confidence_interval(c);
+        assert!(lo < 10.0 && hi > 10.0);
+        // The half-width is the (clamped) ~8.09-sigma quantile.
+        let half = (hi - lo) / 2.0;
+        assert!(half.is_finite() && half > 0.0);
     }
 }

@@ -162,28 +162,28 @@ Findings come from a read-only code review; reproduce each bug with a failing te
 - [x] Negative tests for all of the above (adversarial witnesses via `with_witness_unchecked` in both backends, trybuild `early_return`, malformed-IR/validate tests in `tpt-axiom-ir`, wrong-count/overflow/keygen-rejection tests in backend `tests/proofs.rs`)
 
 #### A2. Core numerics (`tpt-axiom-core`)
-- [ ] Serde deserialization must enforce invariants (`Probability`, `Confidence`, `Categorical`, `Evidence`, `Fuzzy`, `Uncertain`) via `try_from`/shadow structs + negative-payload tests
-- [ ] `Fuzzy` `/` and `*` by exact zero/inf must not panic on NaN variance (unchecked internal ctor and/or `checked_div`)
-- [ ] `fuse` with zero variances (0/0) — add `checked_fuse`
-- [ ] `norm_ppf` panic for confidence near 1 (`fuzzy.rs::confidence_interval`) — use `0.5 + c/2`
-- [ ] `Distribution::sample` panics when RNG returns 0.0 — clamp
-- [ ] `norm_ppf` far-tail branch + accurate `erfc`-based `erf`/`norm_cdf`; correct the "1.15e-9" doc claim
-- [ ] Make `num-traits` `std` optional (`std`/`libm` features) so the `no_std` claim is true; add thumbv7em CI check
-- [ ] Checked constructors for `Gaussian`, `Calibration`, `Provenance` (public fields bypass validation)
-- [ ] Normalize zero-variance `Gaussian` and `Constant`; `TryFrom<Distribution> for Fuzzy` accepts `Constant`
-- [ ] `Categorical::new`: strict constructor erroring on NaN/negative weights; distinct overflow error
-- [ ] `Evidence::combine` / `InferenceSample::to_evidence`: store log-weights
-- [ ] `Probability`: normalize `-0.0`; rename panicking `new_unchecked`
-- [ ] `Confidence`: add `Ord`/`Eq`/`Display`; add `Default` impls
-- [ ] Drop derived `Eq` on float-backed types or reject non-finite mean
-- [ ] Docs: division formula is not "exact", loud independence warning (`x - x` has variance `2v`), `z_score` with zero sigma
+- [x] Serde deserialization enforces invariants — custom `Deserialize` (shadow-struct / tuple re-validation) for `Probability`, `Confidence`, `Fuzzy`, `Categorical`, `Evidence`; nested types (`Bernoulli`, `Score`, `Decision`, `Uncertain::Estimated`) are safe through their validated inner values; negative-payload suite in `tests/serde_invariants.rs` (out-of-range chances, negative variance, non-normalized categorical, non-positive weights all rejected)
+- [x] `Fuzzy` `/` and `*` by exact zero/inf no longer panic on NaN variance — operators go through the unchecked internal `new_raw` (IEEE-faithful degenerate results), plus `Fuzzy::checked_div` (Err with the rejected divisor) and documented `FuseError` for the validated paths
+- [x] `fuse` with zero variances — IEEE `0/0` through `new_raw`; `checked_fuse` rejects degenerate fusion (`Err(FuseError)`)
+- [x] `norm_ppf` panic for confidence near 1 — `confidence_interval` now computes `0.5 + c/2` (never rounds to 1.0 below the last few ulps) and clamps the tail defensively
+- [x] `Distribution::sample` no longer panics on a 0.0/1.0 RNG draw — draws clamp into the open interval, mapping to the corresponding extreme quantile
+- [x] `norm_ppf` far-tail + accurate `erfc`-based `erf`/`norm_cdf` — `erfc` is a power series (< 2) + continued fraction (≥ 2, A&S 7.1.14 via modified Lentz) at ~1e-15 *relative* accuracy into the far tail; `norm_ppf` = Acklam start + log-space Newton against the full-precision CDF (round-trips at p = 1e-300); the "1.15e-9" claim is now scoped to the Acklam initial estimate it describes
+- [x] `num-traits` `std` made optional — core gained `std` (default) / `libm` features; `cargo build --no-default-features --features libm` is the true-`no_std` proof (quants routes through `num_traits::Float` there). thumbv7em CI check deferred to the Phase B CI item
+- [x] Checked constructors — `Distribution::try_gaussian` (+ panicking `gaussian` now validating), `Calibration::new`. `Provenance` deliberately has none: its fields are free-form strings/options with no invariant to enforce
+- [x] Zero-variance `Gaussian` normalizes to `Constant`; `Fuzzy::from(Distribution)` replaces the `TryFrom`+`NotGaussian` pair (a `Constant` is a zero-variance `Fuzzy` — the conversion was always total)
+- [x] `Categorical::new_strict` — errors on NaN/zero/negative weights (`InvalidWeight`), distinct `Overflow` error, `Empty` otherwise; tolerant `new` unchanged and documented as the dropping constructor
+- [x] `Evidence` stores log-weights — `from_log_weight` constructor, exact `log_weight()` accessor, `combine`/`combine_all` now infallible log addition (linear `weight()` reads back `inf` instead of failing); `InferenceSample::to_evidence` transfers the runtime's log weight exactly (Evidence wire format moves to the `log_weight` field, pinned in the roundtrip test)
+- [x] `Probability::new(-0.0)` normalizes to `+0.0`; panicking `new_unchecked` renamed to `new_or_panic` on both `Probability` and `Confidence` (the name now says what it does)
+- [x] `Confidence` gained `Ord`/`Eq` (total_cmp-based)/`Display`/`Default` (NONE); `Probability` gained `Default` (ZERO)
+- [x] Dropped derived `Eq` on float-backed types — `Fuzzy` and `Distribution` are now `PartialEq`-only with a doc reason (`Probability`/`Confidence` keep `Eq`: validated range means no NaN, and `-0.0` is normalized)
+- [x] Docs — division row marked as the delta-method approximation (not "exact"), loud independence warning with the `x - x` has-variance-`2v` example, `z_score` zero-sigma behavior documented, stale `tpt-telos` mention removed from `verify` claims
 
 #### A3. Interop
-- [ ] Augur bridge: accept `sigma == 0` and map to `Constant`, validate variance after squaring (round trip currently fails)
-- [ ] Non-Normal families: rename to `*_approx` or return error instead of silent moment-matching
-- [ ] `variance.max(0.0)` swallows NaN in `from_distribution`
-- [ ] Reject duplicate labels in `MultiLabelOutput`
-- [ ] Document/reject `active_at <= 0.5` in binary `threshold_decision`
+- [x] Augur bridge accepts `sigma == 0` (maps to `Distribution::Constant` — the round trip through `from_distribution` is now lossless) and validates the variance *after* squaring (`sigma = 1e200` is rejected as an overflow, not stored as an infinite variance)
+- [x] Non-Normal families renamed to `*_approx` — `to_fuzzy_approx`/`to_uncertain_approx` (docs state exactly what is lost: higher moments; only `Normal` is information-preserving)
+- [x] `variance.max(0.0)` NaN-swallowing removed — `from_distribution`/`from_fuzzy` return `Result` and reject non-finite moments or negative variance instead of silently emitting a zero-sigma normal
+- [x] Duplicate labels rejected in `MultiLabelOutput::from_probabilities` (`EngineError::DuplicateLabel` — two scores for one label is exactly the uncertainty-leak the per-label independence contract forbids)
+- [x] `active_at <= 0.5` rejected in `threshold_decision` (`EngineError::InvalidThreshold`): at a coin-flip threshold the abstention band is empty and `p == 0.5` would be *committed*; `EngineVerdict::decide`/`MultiLabelOutput::decide` propagate
 
 ### Phase B: Credibility & Adoption Blockers
 - [x] Verified: README headline output is wrong (variance 0.6 gives sigma 0.775, not 0.742)
