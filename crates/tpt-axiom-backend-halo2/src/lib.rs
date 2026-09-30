@@ -11,13 +11,15 @@
 //!
 //! # Integer semantics
 //!
-//! The IR models scalars as `i64`. Over the Pallas base field the adapter
-//! enforces that semantics with range checks: every named input is proven to
-//! be a signed [`Halo2Params::range_bits`]-bit integer (default 64), and every
-//! `NonNegative` constraint is proven to lie in `[0, 2^range_bits)`. Values
-//! produced by `+`/`-`/`*` are exact field images of the integer DAG;
-//! intermediate results that overflow `i64` make proving fail rather than
-//! wrap.
+//! The IR models scalars as `i64`, and records each named input's declared
+//! integer type (`tpt_axiom_ir::IntType`). Over the Pallas base field the
+//! adapter enforces that semantics with range checks: every named input is
+//! proven to fit *its own* declared width and signedness — a `u8` input to
+//! `[0, 2^8)`, an `i64` input to `[-2^63, 2^63)` — capped by
+//! [`Halo2Params::range_bits`] (default 64), and every `NonNegative` constraint
+//! is proven to lie in `[0, 2^range_bits)`. Values produced by `+`/`-`/`*` are
+//! exact field images of the integer DAG; intermediate results that overflow
+//! `i64` make proving fail rather than wrap.
 //!
 //! # Verifying-key portability
 //!

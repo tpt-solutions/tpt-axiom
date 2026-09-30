@@ -6,6 +6,14 @@ and this crate adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `IntType` (bit width + signedness) on `VariableInfo`, with
+  `public_input_typed` / `secret_input_typed` / `output_typed` builders,
+  `ConstraintSystem::int_type` / `expr_int_type` lookups, and the type shown
+  in `describe()` (`public input x : u8`). Untyped declarations still default
+  to signed `i64`, so hand-built IR is unaffected.
+
 ### Changed
 
 - Crate renamed from `axiom-ir` to `tpt-axiom-ir`.

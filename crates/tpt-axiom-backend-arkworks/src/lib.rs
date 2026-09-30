@@ -11,14 +11,15 @@
 //!
 //! # Integer semantics
 //!
-//! The IR models scalars as `i64`. Over the BLS12-381 scalar field the
+//! The IR models scalars as `i64`, and records each named input's declared
+//! integer type (`tpt_axiom_ir::IntType`). Over the BLS12-381 scalar field the
 //! adapter enforces that semantics with bit-decomposition range checks: every
-//! named input is proven to be a signed
-//! [`ArkworksParams::range_bits`]-bit integer (default 64), and every
-//! `NonNegative` constraint is proven to lie in `[0, 2^range_bits)`. Values
-//! produced by `+`/`-`/`*` are exact field images of the integer DAG;
-//! intermediate results that overflow `i64` make proving fail rather than
-//! wrap.
+//! named input is proven to fit *its own* declared width and signedness — a
+//! `u8` input to `[0, 2^8)`, an `i64` input to `[-2^63, 2^63)` — capped by
+//! [`ArkworksParams::range_bits`] (default 64), and every `NonNegative`
+//! constraint is proven to lie in `[0, 2^range_bits)`. Values produced by
+//! `+`/`-`/`*` are exact field images of the integer DAG; intermediate results
+//! that overflow `i64` make proving fail rather than wrap.
 //!
 //! Unlike halo2 0.3, arkworks exposes canonical serialization
 //! ([`ark_serialize::CanonicalSerialize`]) for proving keys, verifying keys

@@ -2,10 +2,18 @@
 //! still runs as ordinary Rust, and the generated circuit definition lowers it
 //! to the backend-agnostic IR.
 
-use tpt_axiom_ir::Constraint;
+use tpt_axiom_ir::{Constraint, IntType};
 use tpt_axiom_macros::zk_provable;
 use tpt_axiom_verify::circuit::evaluate;
 use tpt_axiom_zk::CircuitDefinition;
+
+#[zk_provable(backend = "halo2")]
+fn narrow_types(#[public] small: u8, #[secret] delta: u8, #[public] offset: i16) {
+    assert!(small >= 1);
+    let combined = small + delta;
+    assert!(combined >= delta);
+    assert!(offset >= 0);
+}
 
 #[zk_provable(backend = "halo2")]
 fn prove_balance_transfer(
@@ -104,6 +112,26 @@ fn public_and_secret_classification() {
         })
         .collect();
     assert_eq!(secret, vec!["amount"]);
+}
+
+#[test]
+fn declared_parameter_types_reach_the_ir() {
+    let ir = NarrowTypes.build();
+    let small = ir.variable_id("small").expect("small declared");
+    let delta = ir.variable_id("delta").expect("delta declared");
+    let offset = ir.variable_id("offset").expect("offset declared");
+    // The declared widths survive lowering, so backends can range check each
+    // parameter against its own type instead of a blanket signed i64.
+    assert_eq!(ir.expr_int_type(small), Some(IntType::U8));
+    assert_eq!(ir.expr_int_type(delta), Some(IntType::U8));
+    assert_eq!(ir.expr_int_type(offset), Some(IntType::I16));
+}
+
+#[test]
+fn u64_parameters_are_recorded_as_unsigned() {
+    let ir = ProveBalanceTransfer.build();
+    let sender = ir.variable_id("sender_balance").expect("sender");
+    assert_eq!(ir.expr_int_type(sender), Some(IntType::U64));
 }
 
 // Cross-checks the IR against the kept-original Rust function on sampled

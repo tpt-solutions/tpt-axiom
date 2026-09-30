@@ -1,0 +1,5 @@
+error: type ascription on `wrong` does not match the declared type of `amount`
+ --> tests/ui/let_type_mismatch.rs:8:16
+  |
+8 |     let wrong: u16 = amount;
+  |                ^^^

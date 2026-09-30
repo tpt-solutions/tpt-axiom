@@ -4,9 +4,10 @@
 //! operands with `a·b = c` constraints (`Mul` is a genuine quadratic gate;
 //! `Add`/`Sub`/`Neg` constrain against the constant one). Equality and zero
 //! constraints become linear gates; `NonNegative` constraints and every named
-//! input are enforced with bit decomposition — 64 boolean witnesses plus a
-//! linear sum — which is what makes signed-64-bit circuit semantics sound
-//! over the BLS12-381 scalar field.
+//! input are enforced with bit decomposition — one boolean witness per bit
+//! plus a linear sum, sized by that input's declared integer type — which is
+//! what makes signed- and narrow-typed circuit semantics sound over the
+//! BLS12-381 scalar field.
 
 use ark_bls12_381::Fr;
 use ark_ff::{One, Zero};
@@ -299,11 +300,10 @@ impl ConstraintSynthesizer<Fr> for ArkworksCircuit {
             }
         }
 
-        // Signed range checks for every named input: the checked value is
-        // `v + 2^(range_bits-1)`, an unsigned `range_bits`-bit integer for
-        // every in-range `i64`.
-        let offset = 1u64 << circuit_bits.saturating_sub(1);
-        for (var_id, _) in ir.variables.iter().enumerate() {
+        // Range checks for every named input, honouring each variable's own
+        // declared integer type. Signed types are shifted by `2^(bits-1)` into
+        // `[0, 2^bits)`; unsigned types are checked directly against the input.
+        for (var_id, info) in ir.variables.iter().enumerate() {
             let Some(expr_id) = ir
                 .exprs
                 .iter()
@@ -311,16 +311,26 @@ impl ConstraintSynthesizer<Fr> for ArkworksCircuit {
             else {
                 continue;
             };
-            let shifted = witness
-                .node(&ir, expr_id)
-                .map(|v| u64::try_from(i128::from(v) + i128::from(offset)).unwrap_or(u64::MAX));
-            #[allow(clippy::cast_sign_loss)] // unreachable: shifted is non-negative
-            let shifted_lc = {
+            let bits = usize::try_from(info.int_type.bits)
+                .unwrap_or(64)
+                .clamp(1, 64)
+                .min(circuit_bits.max(1));
+            let offset = info.int_type.signed_offset();
+            let checked = witness.node(&ir, expr_id).map(|v| {
+                if info.int_type.signed {
+                    u64::try_from(i128::from(v) + i128::from(offset)).unwrap_or(u64::MAX)
+                } else {
+                    u64::try_from(v).unwrap_or(0)
+                }
+            });
+            let input = node_lc[expr_id].clone().expect("input");
+            let source = if info.int_type.signed {
                 // checked value = input + offset
-                let input = node_lc[expr_id].clone().expect("input");
                 merge(input, Fr::one(), term(encode_u64(offset), Variable::One))
+            } else {
+                input
             };
-            range_check(&cs, range_bits, shifted, &shifted_lc)?;
+            range_check(&cs, bits, checked, &source)?;
         }
 
         cs.finalize();

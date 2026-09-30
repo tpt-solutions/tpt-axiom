@@ -15,11 +15,12 @@ produces proofs that verify independently of the proving process.
   `+`, `-`, unary `-` constrain against the constant one).
 * Equality and zero constraints become linear gates.
 * Soundness over the field comes from bit-decomposition range checks: every
-  named input is proven to be a **signed** `range_bits`-bit integer (default
-  64, configurable via the `params` byte string) and every `NonNegative`
-  constraint is proven to lie in `[0, 2^range_bits)`. Witnesses that violate
-  the IR are rejected at prove time by `tpt_axiom_zk::witness`; arkworks'
-  own `cs.is_satisfied()` assert is the second line of defense.
+  named input is proven to fit its **declared** integer type (`u8` to
+  `[0, 2^8)`, `i64` to `[-2^63, 2^63)`, capped by the `range_bits` param,
+  default 64) and every `NonNegative` constraint is proven to lie in
+  `[0, 2^range_bits)`. Witnesses that violate the IR are rejected at prove
+  time by `tpt_axiom_zk::witness`; arkworks' own `cs.is_satisfied()` assert is
+  the second line of defense.
 
 ## Key material serialization
 

@@ -6,6 +6,15 @@ and this crate adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Parameter and return types are carried into the IR, so backends can range
+  check each named input against its own declared width and signedness
+  (a `u8` input is proven in `[0, 2^8)`, not as a blanket signed `i64`).
+- `let x: T = ...` type ascriptions are now enforced: a non-integer ascription
+  is rejected, and one that disagrees with the declared type of the binding it
+  initialises is a compile error (UI test `let_type_mismatch.rs`).
+
 ### Changed
 
 - Crate renamed from `axiom-macros` to `tpt-axiom-macros`.

@@ -20,6 +20,91 @@ pub enum Visibility {
     Secret,
 }
 
+/// The declared integer type of a variable: a bit width plus signedness.
+///
+/// The macro records the parameter's Rust type here so backends can range
+/// check each variable against *its own* width instead of a single circuit-wide
+/// signed-`i64` assumption. A `u8` parameter is proven to lie in `[0, 2^8)`; an
+/// `i64` parameter is proven to lie in `[-2^63, 2^63)`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct IntType {
+    /// Width of the type in bits (`8`, `16`, `32`, `64`).
+    pub bits: u32,
+    /// Whether the value may be negative.
+    pub signed: bool,
+}
+
+impl IntType {
+    /// Signed 8-bit.
+    pub const I8: Self = Self::new(8, true);
+    /// Signed 16-bit.
+    pub const I16: Self = Self::new(16, true);
+    /// Signed 32-bit.
+    pub const I32: Self = Self::new(32, true);
+    /// Signed 64-bit, the default assumed for hand-built IR.
+    pub const I64: Self = Self::new(64, true);
+    /// Unsigned 8-bit.
+    pub const U8: Self = Self::new(8, false);
+    /// Unsigned 16-bit.
+    pub const U16: Self = Self::new(16, false);
+    /// Unsigned 32-bit.
+    pub const U32: Self = Self::new(32, false);
+    /// Unsigned 64-bit.
+    pub const U64: Self = Self::new(64, false);
+
+    /// Builds a type description from a bit width and signedness.
+    #[must_use]
+    pub const fn new(bits: u32, signed: bool) -> Self {
+        Self { bits, signed }
+    }
+
+    /// Parses a Rust integer primitive name (`u8`, `i32`, ...).
+    ///
+    /// Returns `None` for any non-integer type name.
+    #[must_use]
+    pub fn from_type_name(name: &str) -> Option<Self> {
+        let (signed, bits) = match name {
+            "u8" => (false, 8),
+            "u16" => (false, 16),
+            "u32" => (false, 32),
+            "u64" | "usize" => (false, 64),
+            "i8" => (true, 8),
+            "i16" => (true, 16),
+            "i32" => (true, 32),
+            "i64" | "isize" => (true, 64),
+            _ => return None,
+        };
+        Some(Self { bits, signed })
+    }
+
+    /// The largest value this type can represent (`u64`); saturating for
+    /// widths above 64 bits.
+    #[must_use]
+    pub const fn max_value(self) -> u64 {
+        if self.bits >= 64 {
+            u64::MAX
+        } else {
+            (1u64 << self.bits) - 1
+        }
+    }
+
+    /// The offset that maps a signed value into `[0, 2^bits)`.
+    #[must_use]
+    pub const fn signed_offset(self) -> u64 {
+        if self.signed && self.bits > 0 {
+            1u64 << (self.bits - 1)
+        } else {
+            0
+        }
+    }
+}
+
+impl Default for IntType {
+    fn default() -> Self {
+        Self::I64
+    }
+}
+
 /// Metadata about a named variable.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VariableInfo {
@@ -27,6 +112,8 @@ pub struct VariableInfo {
     pub name: String,
     /// Public or secret.
     pub visibility: Visibility,
+    /// The integer type the parameter was declared with; drives range checks.
+    pub int_type: IntType,
 }
 
 /// A node in the arithmetic expression DAG.
@@ -95,6 +182,25 @@ impl ConstraintSystem {
         })
     }
 
+    /// The declared integer type of a variable id, defaulting to signed
+    /// `i64` when the id is out of range.
+    #[must_use]
+    pub fn int_type(&self, variable: usize) -> IntType {
+        self.variables
+            .get(variable)
+            .map_or(IntType::I64, |info| info.int_type)
+    }
+
+    /// The declared integer type of the variable an expression reads, if it is
+    /// a variable reference.
+    #[must_use]
+    pub fn expr_int_type(&self, id: ExprId) -> Option<IntType> {
+        match self.exprs.get(id) {
+            Some(Expr::Var(v)) => Some(self.int_type(*v)),
+            _ => None,
+        }
+    }
+
     /// Number of named public inputs + outputs.
     #[must_use]
     pub fn num_public(&self) -> usize {
@@ -120,7 +226,13 @@ impl ConstraintSystem {
             for &id in ids {
                 if let Expr::Var(v) = &self.exprs[id] {
                     if let Some(info) = self.variables.get(*v) {
-                        let _ = core::writeln!(&mut out, "  {kind} input {}", info.name);
+                        let _ = core::writeln!(
+                            &mut out,
+                            "  {kind} input {} : {}{}",
+                            info.name,
+                            if info.int_type.signed { "i" } else { "u" },
+                            info.int_type.bits
+                        );
                     }
                 }
             }
@@ -155,25 +267,49 @@ impl ConstraintSystemBuilder {
     }
 
     /// Declare a public input variable and return its expression id.
+    ///
+    /// Assumes signed `i64` semantics; use [`Self::public_input_typed`] to
+    /// carry a narrower or unsigned declared type.
     pub fn public_input(&mut self, name: &str) -> ExprId {
-        self.declare_var(name, Visibility::Public)
+        self.public_input_typed(name, IntType::I64)
+    }
+
+    /// Declare a public input variable with an explicit integer type.
+    pub fn public_input_typed(&mut self, name: &str, int_type: IntType) -> ExprId {
+        self.declare_var(name, Visibility::Public, int_type)
     }
 
     /// Declare a public output variable (a public input to the verifier).
+    ///
+    /// Assumes signed `i64` semantics; use [`Self::output_typed`] otherwise.
     pub fn output(&mut self, name: &str) -> ExprId {
-        self.declare_var(name, Visibility::Public)
+        self.output_typed(name, IntType::I64)
+    }
+
+    /// Declare a public output variable with an explicit integer type.
+    pub fn output_typed(&mut self, name: &str, int_type: IntType) -> ExprId {
+        self.declare_var(name, Visibility::Public, int_type)
     }
 
     /// Declare a secret witness variable and return its expression id.
+    ///
+    /// Assumes signed `i64` semantics; use [`Self::secret_input_typed`] to
+    /// carry a narrower or unsigned declared type.
     pub fn secret_input(&mut self, name: &str) -> ExprId {
-        self.declare_var(name, Visibility::Secret)
+        self.secret_input_typed(name, IntType::I64)
     }
 
-    fn declare_var(&mut self, name: &str, visibility: Visibility) -> ExprId {
+    /// Declare a secret witness variable with an explicit integer type.
+    pub fn secret_input_typed(&mut self, name: &str, int_type: IntType) -> ExprId {
+        self.declare_var(name, Visibility::Secret, int_type)
+    }
+
+    fn declare_var(&mut self, name: &str, visibility: Visibility, int_type: IntType) -> ExprId {
         let var_id = self.system.variables.len();
         self.system.variables.push(VariableInfo {
             name: name.to_owned(),
             visibility,
+            int_type,
         });
         self.system.exprs.push(Expr::Var(var_id));
         self.named_exprs.push(Some(name.to_owned()));
@@ -274,6 +410,38 @@ mod tests {
         b.constrain_zero(x);
         let text = b.build().describe();
         assert!(text.contains("circuit f"));
-        assert!(text.contains("public input x"));
+        assert!(text.contains("public input x : i64"));
+    }
+
+    #[test]
+    fn typed_declarations_carry_their_width() {
+        let mut b = ConstraintSystemBuilder::new("f");
+        let a = b.public_input_typed("a", IntType::U8);
+        let c = b.secret_input_typed("c", IntType::I16);
+        b.output_typed("return", IntType::U32);
+        let ir = b.build();
+
+        assert_eq!(ir.expr_int_type(a), Some(IntType::U8));
+        assert_eq!(ir.expr_int_type(c), Some(IntType::I16));
+        assert_eq!(IntType::U8.max_value(), 255);
+        assert_eq!(IntType::I8.signed_offset(), 128);
+        assert_eq!(IntType::U8.signed_offset(), 0);
+        assert!(ir.describe().contains("public input a : u8"));
+        assert!(ir.describe().contains("secret input c : i16"));
+    }
+
+    #[test]
+    fn untyped_declarations_default_to_signed_i64() {
+        let mut b = ConstraintSystemBuilder::new("f");
+        let a = b.public_input("a");
+        assert_eq!(b.build().expr_int_type(a), Some(IntType::I64));
+    }
+
+    #[test]
+    fn int_type_parses_rust_primitives() {
+        assert_eq!(IntType::from_type_name("u8"), Some(IntType::U8));
+        assert_eq!(IntType::from_type_name("isize"), Some(IntType::I64));
+        assert_eq!(IntType::from_type_name("f64"), None);
+        assert_eq!(IntType::from_type_name("String"), None);
     }
 }

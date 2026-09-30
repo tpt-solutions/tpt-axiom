@@ -7,10 +7,11 @@
 //! with `assign_advice_from_constant`.
 //!
 //! Soundness over a field comes from bit-decomposition range checks: every
-//! named input is checked to be a signed `range_bits`-bit integer (via a
-//! `+2^(range_bits-1)` shift through the `signed-shift` gate, whose offset
-//! lives in the fixed column) and every `NonNegative` constraint is checked
-//! to lie in `[0, 2^range_bits)`. A prover cannot substitute a field element
+//! named input is checked against *its own* declared integer type — a signed
+//! `bits`-wide value through a `+2^(bits-1)` shift over the `signed-shift`
+//! gate, whose offset lives in the fixed column, an unsigned `bits`-wide value
+//! directly — and every `NonNegative` constraint is checked to lie in
+//! `[0, 2^range_bits)`. A prover cannot substitute a field element
 //! outside the integer range the circuit's semantics assume.
 
 use ff::Field;
@@ -21,7 +22,7 @@ use halo2_proofs::plonk::{
     Expression, Fixed, Instance, Selector,
 };
 use halo2_proofs::poly::Rotation;
-use tpt_axiom_ir::{Constraint, ConstraintSystem, Expr};
+use tpt_axiom_ir::{Constraint, ConstraintSystem, Expr, IntType};
 use tpt_axiom_zk::witness::{WitnessError, check as check_witness};
 
 /// Bit width used to range-check named inputs and `NonNegative` constraints.
@@ -93,13 +94,30 @@ const BLINDING_ROWS: usize = 64;
 #[must_use]
 pub fn auto_k(ir: &ConstraintSystem, range_bits: u32) -> u32 {
     let bits = usize::try_from(range_bits).unwrap_or(usize::MAX / 4);
+    // Named-input checks cost `bits` rows each (plus one signed-shift row for
+    // signed types), sized from the widest declared type in the IR.
+    let widest = ir
+        .variables
+        .iter()
+        .map(|info| usize::try_from(info.int_type.bits).unwrap_or(64))
+        .max()
+        .unwrap_or(0)
+        .min(bits);
+    let input_rows: usize = ir
+        .variables
+        .iter()
+        .map(|info| {
+            usize::try_from(info.int_type.bits).unwrap_or(64).min(bits)
+                + usize::from(info.int_type.signed)
+        })
+        .sum();
     let rows = ir.exprs.len().saturating_add(ir.constraints.len())
-        + ir.variables.len().saturating_mul(bits.saturating_add(1))
+        + input_rows
         + ir.constraints
             .iter()
             .filter(|c| matches!(c, Constraint::NonNegative(_)))
             .count()
-            .saturating_mul(bits)
+            .saturating_mul(widest)
         + BLINDING_ROWS;
     let mut k = 4u32;
     while (1usize << k) < rows {
@@ -499,11 +517,12 @@ impl Halo2Circuit {
             }
         }
 
-        // Bit-decomposition range checks. Signed input checks shift their
-        // value into `[0, 2^range_bits)` through the signed-shift gate first.
+        // Bit-decomposition range checks. Each named input is checked against
+        // its own declared integer type: signed types shift into range through
+        // the signed-shift gate, unsigned types are checked directly.
         let range_bits = usize::try_from(self.range_bits).unwrap_or(0);
-        let signed_offset = 1i128 << self.range_bits.saturating_sub(1).min(126);
-        for (var_id, _) in self.ir.variables.iter().enumerate() {
+        let [a, b, c] = config.advice;
+        for (var_id, info) in self.ir.variables.iter().enumerate() {
             let Some(expr_id) = self
                 .ir
                 .exprs
@@ -512,38 +531,17 @@ impl Halo2Circuit {
             else {
                 continue;
             };
-            let shifted = values
-                .int(expr_id)
-                .map(|v| u64::try_from(i128::from(v) + signed_offset).unwrap_or(u64::MAX));
-            let shift_row = extra_row;
-            region.assign_fixed(
-                || "signed offset",
-                config.fixed,
-                shift_row,
-                || Value::known(encode_u64(u64::try_from(signed_offset).unwrap_or(1))),
-            )?;
-            config.s_signed_shift.enable(region, shift_row)?;
-            cells[expr_id]
-                .as_ref()
-                .expect("input node assigned earlier")
-                .copy_advice(|| "pre-shift input", region, a, shift_row)?;
-            region.assign_advice(
-                || "post-shift input",
-                c,
-                shift_row,
-                || shifted.map_or_else(Value::unknown, |v| Value::known(encode_u64(v))),
-            )?;
-            extra_row += 1;
-            self.range_check(
+            self.range_check_input(
                 region,
                 config,
-                shifted,
-                None,
+                &values,
+                &cells,
+                expr_id,
+                info.int_type,
                 a,
                 b,
                 c,
                 &mut extra_row,
-                range_bits,
             )?;
         }
         for constraint in &self.ir.constraints {
@@ -571,13 +569,71 @@ impl Halo2Circuit {
         Ok(())
     }
 
+    /// Bit-decomposition range check for one named input, honouring its declared
+    /// integer type.
+    ///
+    /// Signed types are shifted by `2^(bits-1)` through the signed-shift gate
+    /// first; unsigned types are checked directly. The row budget depends on
+    /// the widest declared type, not on the circuit-wide default.
+    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::many_single_char_names)] // halo2's a/b/c column idiom
+    fn range_check_input(
+        &self,
+        region: &mut Region<'_, Fp>,
+        config: &CircuitConfig,
+        values: &NodeValues,
+        cells: &[Option<AssignedCell<Fp, Fp>>],
+        expr_id: usize,
+        int_type: IntType,
+        a: Halo2Column<Advice>,
+        b: Halo2Column<Advice>,
+        c: Halo2Column<Advice>,
+        next_row: &mut usize,
+    ) -> Result<(), Error> {
+        let bits = usize::try_from(int_type.bits).unwrap_or(0).clamp(1, 64);
+        if int_type.signed {
+            let signed_offset = 1u64 << (bits - 1);
+            let shifted = values
+                .int(expr_id)
+                .map(|v| u64::try_from(i128::from(v) + i128::from(signed_offset)).unwrap_or(0));
+            let shift_row = *next_row;
+            region.assign_fixed(
+                || "signed offset",
+                config.fixed,
+                shift_row,
+                || Value::known(encode_u64(signed_offset)),
+            )?;
+            config.s_signed_shift.enable(region, shift_row)?;
+            cells[expr_id]
+                .as_ref()
+                .expect("input node assigned earlier")
+                .copy_advice(|| "pre-shift input", region, a, shift_row)?;
+            region.assign_advice(
+                || "post-shift input",
+                c,
+                shift_row,
+                || shifted.map_or_else(Value::unknown, |v| Value::known(encode_u64(v))),
+            )?;
+            *next_row += 1;
+            self.range_check(region, config, shifted, None, a, b, c, next_row, bits)
+        } else {
+            // Unsigned: the value itself must fit the declared width, so the
+            // accumulator starts at the input's own cell.
+            let checked = values.int(expr_id).map(|v| u64::try_from(v).unwrap_or(0));
+            let cell = cells[expr_id]
+                .as_ref()
+                .expect("input node assigned earlier");
+            self.range_check(region, config, checked, Some(cell), a, b, c, next_row, bits)
+        }
+    }
+
     /// Assigns one bit-decomposition range check for `checked` (unknown at
     /// key generation), starting at `*next_row`.
     ///
     /// `source`, when present, copy-constrains the checked accumulator to the
-    /// constrained node's cell (`NonNegative` checks); signed input checks
-    /// pass `None` because their accumulator was already linked to the input
-    /// through the signed-shift gate.
+    /// constrained node's cell (`NonNegative` checks, and unsigned inputs);
+    /// signed input checks pass `None` because their accumulator was already
+    /// linked to the input through the signed-shift gate.
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::unused_self)] // uniform method surface for the lowering passes
     #[allow(clippy::many_single_char_names)] // halo2's a/b/c column idiom

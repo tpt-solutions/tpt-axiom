@@ -14,6 +14,10 @@ and this crate adheres to [Semantic Versioning](https://semver.org/).
 - Signed `i64` circuit semantics via bit-decomposition range checks on every
   named input and `NonNegative` constraint; `ArkworksParams` (`range_bits`)
   carried in the backend `params` byte string.
+- Per-input range checks keyed on each variable's declared
+  `tpt_axiom_ir::IntType`: signed types are shifted by `2^(bits-1)` into
+  `[0, 2^bits)`, unsigned types are checked directly against the input, so a
+  `u8` parameter is proven in `[0, 2^8)`.
 - IR-level witness validation at prove time via the shared
   `tpt_axiom_zk::witness` check.
 - Canonical serialization helper (`to_bytes`) for keys and proofs, with a

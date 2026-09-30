@@ -14,6 +14,11 @@ and this crate adheres to [Semantic Versioning](https://semver.org/).
 - Signed `i64` circuit semantics via bit-decomposition range checks on every
   named input and `NonNegative` constraint; `Halo2Params` (`range_bits`, `k`)
   carried in the backend `params` byte string with auto-sizing.
+- Per-input range checks keyed on each variable's declared
+  `tpt_axiom_ir::IntType`: signed types shift through the `signed-shift` gate
+  by `2^(bits-1)`, unsigned types are checked directly, so a `u8` parameter is
+  proven in `[0, 2^8)`. `auto_k` sizes the row budget from the declared
+  widths.
 - IR-level witness validation at prove time via the shared
   `tpt_axiom_zk::witness` check, plus `with_witness_unchecked` for testing
   the circuit's own soundness.

@@ -1,6 +1,6 @@
 //! The `#[zk_provable]` lowering: Rust AST → generated circuit definition.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
@@ -23,12 +23,20 @@ pub fn lower_function(func: &ItemFn, backend: &str) -> syn::Result<TokenStream> 
     let ir_path = resolve_crate("tpt-axiom-ir", "tpt_axiom_ir");
     let zk_path = resolve_crate("tpt-axiom-zk", "tpt_axiom_zk");
 
+    let output_int = match &func.sig.output {
+        ReturnType::Default => None,
+        ReturnType::Type(_, ty) => Some(int_type_of(ty, "return type")?),
+    };
+
     let mut lowerer = Lowerer {
         has_return,
         tokens: TokenStream::new(),
         bound: BTreeSet::new(),
+        types: BTreeMap::new(),
         counter: 0,
         output_bound: false,
+        output_int,
+        ir_path: ir_path.clone(),
     };
     lowerer.declare_params(func)?;
     lowerer.lower_block(&func.block)?;
@@ -105,12 +113,113 @@ fn resolve_crate(package: &str, fallback: &str) -> TokenStream {
     }
 }
 
+/// A declared integer width plus signedness, as recovered from Rust syntax.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct IntSpec {
+    bits: u32,
+    signed: bool,
+}
+
+impl IntSpec {
+    /// Signed 64-bit; the default the IR uses for hand-built systems.
+    const I64: Self = Self {
+        bits: 64,
+        signed: true,
+    };
+
+    /// The IR constructor expression for this type, given the resolved path to
+    /// `tpt-axiom-ir`.
+    fn ir_expr(self, ir_path: &TokenStream) -> TokenStream {
+        let variant = match (self.bits, self.signed) {
+            (8, true) => "I8",
+            (16, true) => "I16",
+            (32, true) => "I32",
+            (8, false) => "U8",
+            (16, false) => "U16",
+            (32, false) => "U32",
+            (64, true) => "I64",
+            _ => "U64",
+        };
+        let variant = Ident::new(variant, Span::call_site());
+        quote!(#ir_path::IntType::#variant)
+    }
+}
+
+/// Emits the [`tpt_axiom_ir::IntType`] expression for a declared type.
+fn int_type_tokens(spec: IntSpec, ir_path: &TokenStream) -> TokenStream {
+    spec.ir_expr(ir_path)
+}
+
+/// Recovers the integer spec from a Rust type, rejecting anything else.
+fn int_type_of(ty: &Type, context: &str) -> syn::Result<IntSpec> {
+    validate_integer_type(ty, context)?;
+    let name = match ty {
+        Type::Path(tp) => tp
+            .path
+            .segments
+            .last()
+            .map(|segment| segment.ident.to_string())
+            .unwrap_or_default(),
+        _ => String::new(),
+    };
+    let spec = match name.as_str() {
+        "u8" => IntSpec {
+            bits: 8,
+            signed: false,
+        },
+        "u16" => IntSpec {
+            bits: 16,
+            signed: false,
+        },
+        "u32" => IntSpec {
+            bits: 32,
+            signed: false,
+        },
+        "u64" | "usize" => IntSpec {
+            bits: 64,
+            signed: false,
+        },
+        "i8" => IntSpec {
+            bits: 8,
+            signed: true,
+        },
+        "i16" => IntSpec {
+            bits: 16,
+            signed: true,
+        },
+        "i32" => IntSpec {
+            bits: 32,
+            signed: true,
+        },
+        "i64" | "isize" => IntSpec {
+            bits: 64,
+            signed: true,
+        },
+        _ => {
+            return Err(Error::new(
+                ty.span(),
+                format!(
+                    "{context}: `{name}` is not a supported integer width (use u8/u16/u32/u64/usize or i8/i16/i32/i64/isize)"
+                ),
+            ));
+        }
+    };
+    Ok(spec)
+}
+
 struct Lowerer {
     has_return: bool,
     tokens: TokenStream,
     bound: BTreeSet<String>,
+    /// The declared integer type of each bound name.
+    types: BTreeMap<String, IntSpec>,
     counter: usize,
     output_bound: bool,
+    /// The declared integer type of the public output (`None` when the function
+    /// returns nothing).
+    output_int: Option<IntSpec>,
+    /// The resolved path to `tpt-axiom-ir`, used to emit `IntType` values.
+    ir_path: TokenStream,
 }
 
 impl Lowerer {
@@ -151,14 +260,17 @@ impl Lowerer {
 
             let name = ident.to_string();
             let ctor = if secret {
-                quote!(secret_input)
+                quote!(secret_input_typed)
             } else {
-                quote!(public_input)
+                quote!(public_input_typed)
             };
+            let int_type = int_type_of(&pt.ty, "parameter type")?;
+            let int_tokens = int_type_tokens(int_type, &self.ir_path);
             let binding = ident.clone();
             self.tokens.extend(quote! {
-                let #binding = __axiom_builder.#ctor(#name);
+                let #binding = __axiom_builder.#ctor(#name, #int_tokens);
             });
+            self.types.insert(name.clone(), int_type);
             self.bound.insert(name);
         }
         Ok(())
@@ -223,6 +335,32 @@ impl Lowerer {
                 ),
             ));
         }
+        // A `let x: T = ...` ascription is enforced, not ignored: when the
+        // initialiser is a bare reference to an already-typed binding, the
+        // ascription must agree with that binding's declared type.
+        let declared = match &local.pat {
+            Pat::Type(pt) => {
+                let ascribed = int_type_of(&pt.ty, "`let` type ascription")?;
+                if let Expr::Path(path) = &*init.expr {
+                    if path.path.segments.len() == 1 {
+                        let source = path.path.segments[0].ident.to_string();
+                        if let Some(bound) = self.types.get(&source) {
+                            if *bound != ascribed {
+                                return Err(Error::new(
+                                    pt.ty.span(),
+                                    format!(
+                                        "type ascription on `{name}` does not match the declared type of `{source}`"
+                                    ),
+                                ));
+                            }
+                        }
+                    }
+                }
+                Some(ascribed)
+            }
+            _ => None,
+        };
+        self.types.insert(name, declared.unwrap_or(IntSpec::I64));
         self.tokens.extend(quote! {
             let #ident = #handle;
         });
@@ -289,8 +427,10 @@ impl Lowerer {
             ));
         }
         let out = self.fresh();
+        let spec = self.output_int.unwrap_or(IntSpec::I64);
+        let int_tokens = int_type_tokens(spec, &self.ir_path);
         self.tokens.extend(quote! {
-            let #out = __axiom_builder.output("return");
+            let #out = __axiom_builder.output_typed("return", #int_tokens);
             __axiom_builder.constrain_eq(#out, #handle);
         });
         self.output_bound = true;

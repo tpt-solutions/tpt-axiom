@@ -145,8 +145,8 @@ Findings come from a read-only code review; reproduce each bug with a failing te
 
 ### Phase A: Correctness & Soundness
 #### A1. ZK soundness
-- [ ] Carry declared integer type `(bits, signed)` per variable into the IR and use it in halo2/arkworks range checks (currently every parameter is treated as signed i64; `u8`/`u64` params accept out-of-width values) — `lower.rs`, `ir/circuit.rs`, backend `circuit.rs`
-- [ ] Enforce `let x: u8 = ...` type ascriptions (currently dropped silently)
+- [x] Carry declared integer type `(bits, signed)` per variable into the IR and use it in halo2/arkworks range checks (previously every parameter was treated as signed i64, so `u8`/`u64` params accepted out-of-width values) — `IntType` on `VariableInfo`, filled in from each parameter's Rust type by `lower.rs`, consumed by halo2's `range_check_input`, arkworks' named-input loop, and `auto_k`'s row budget; a `u8` parameter is now proven in `[0, 2^8)` (regression tests in both backends' `tests/proofs.rs`)
+- [x] Enforce `let x: u8 = ...` type ascriptions (previously dropped silently): non-integer ascriptions are rejected, and an ascription that contradicts the declared type of the binding it initialises is a compile error (`tests/ui/let_type_mismatch.rs`)
 - [ ] Range-check intermediate `Mul` results (or track static bit-width bounds and reject circuits nearing ~250 bits) so field wraparound cannot satisfy constraints
 - [ ] Evaluate witnesses in `i128`/bigint instead of wrapping `i64` (`zk/witness.rs`); wider check for `NonNegative` operands
 - [ ] Make non-final `return;` a compile error (`lower.rs:277`)

@@ -39,6 +39,14 @@ fn weighted_sum(a: u64, b: u64, #[secret] k: u64) -> u64 {
     scaled + b
 }
 
+#[zk_provable(backend = "halo2")]
+/// A narrow-typed circuit: `small` is a `u8`, so anything outside `[0, 256)`
+/// must be rejected even though the field would happily hold it.
+#[allow(clippy::missing_const_for_fn)] // kept fn shape is fixed by the macro
+fn narrow_range(#[public] small: u8, #[secret] bump: u8) {
+    assert!(small >= bump);
+}
+
 #[allow(clippy::missing_const_for_fn)] // trivial test helper
 fn compiled(ir: &ConstraintSystem) -> Halo2Circuit {
     Halo2Circuit::compile(ir, 64, 0)
@@ -234,6 +242,42 @@ fn real_proof_public_output_roundtrip() {
             .verify(&vk, &[2, 3, 12], &proof)
             .expect("clean false"),
         "wrong public output must fail"
+    );
+}
+
+#[test]
+fn narrow_unsigned_inputs_are_range_checked() {
+    let ir = NarrowRange.build();
+    // 300 fits comfortably in the field but not in a `u8`.
+    let circuit = compiled(&ir)
+        .with_witness_unchecked(vec![300], vec![1])
+        .expect("arity");
+    assert!(
+        mock_check(&circuit).is_err(),
+        "a u8 input outside [0, 256) must not satisfy the circuit"
+    );
+}
+
+#[test]
+fn narrow_unsigned_inputs_accept_in_range_values() {
+    let ir = NarrowRange.build();
+    let circuit = compiled(&ir)
+        .with_witness_unchecked(vec![200], vec![1])
+        .expect("arity");
+    mock_check(&circuit).expect("200 is a valid u8");
+}
+
+#[test]
+fn negative_value_for_unsigned_input_is_rejected() {
+    let ir = NarrowRange.build();
+    // A negative witness cannot be represented as an unsigned `bits`-wide
+    // value, so the bit decomposition cannot sum back to the input.
+    let circuit = compiled(&ir)
+        .with_witness_unchecked(vec![-5], vec![-9])
+        .expect("arity");
+    assert!(
+        mock_check(&circuit).is_err(),
+        "a negative value must not satisfy an unsigned input"
     );
 }
 

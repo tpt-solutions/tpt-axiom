@@ -46,6 +46,14 @@ fn weighted_sum(a: u64, b: u64, #[secret] k: u64) -> u64 {
     scaled + b
 }
 
+#[zk_provable(backend = "arkworks")]
+/// A narrow-typed circuit: `small` is a `u8`, so anything outside `[0, 256)`
+/// must be rejected even though the field would happily hold it.
+#[allow(clippy::missing_const_for_fn)] // kept fn shape is fixed by the macro
+fn narrow_range(#[public] small: u8, #[secret] bump: u8) {
+    assert!(small >= bump);
+}
+
 #[allow(clippy::missing_const_for_fn)] // trivial test helper
 fn compiled(ir: &ConstraintSystem) -> ArkworksCircuit {
     ArkworksCircuit::compile(ir, 64)
@@ -64,6 +72,66 @@ fn prove_unchecked(
         witnessed,
         &mut ark_std::rand::rngs::OsRng,
     )?))
+}
+
+/// Silences arkworks' `assert!(cs.is_satisfied())` panic output for the
+/// negative-path tests below.
+fn silence_panics() {
+    static SILENCE: std::sync::Once = std::sync::Once::new();
+    SILENCE.call_once(|| std::panic::set_hook(Box::new(|_| {})));
+}
+
+/// Real Groth16 proving on the given witness.
+///
+/// arkworks *asserts* `cs.is_satisfied()` inside its prover rather than
+/// returning an error, so an out-of-range witness surfaces as a panic; this
+/// helper normalises that into `Ok(false)`.
+fn prove_succeeds(
+    ir: &ConstraintSystem,
+    public: &[i64],
+    secret: &[i64],
+) -> Result<ArkworksProof, ArkworksError> {
+    let backend = ArkworksBackend;
+    let circuit = backend.compile(ir).expect("compile");
+    let (pk, _vk) = backend.generate_keys(ir, &[]).expect("keys");
+    silence_panics();
+    let attempt = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        backend.prove(&circuit, &pk, public, secret)
+    }));
+    // arkworks panics on an unsatisfiable witness; report it as a failure.
+    attempt.unwrap_or(Err(ArkworksError::Witness(WitnessError::Violated {
+        index: 0,
+    })))
+}
+
+#[test]
+fn narrow_unsigned_inputs_are_range_checked() {
+    let ir = NarrowRange.build();
+    // 300 fits comfortably in the field but not in a `u8`: the bit sum can
+    // never agree with the input, so the R1CS is unsatisfiable and no proof
+    // exists.
+    assert!(
+        prove_succeeds(&ir, &[300], &[1]).is_err(),
+        "a u8 input outside [0, 256) must not produce a proof"
+    );
+}
+
+#[test]
+fn narrow_unsigned_inputs_accept_in_range_values() {
+    let ir = NarrowRange.build();
+    assert!(
+        prove_succeeds(&ir, &[200], &[1]).is_ok(),
+        "200 is a valid u8"
+    );
+}
+
+#[test]
+fn negative_value_for_unsigned_input_is_rejected() {
+    let ir = NarrowRange.build();
+    assert!(
+        prove_succeeds(&ir, &[-5], &[-9]).is_err(),
+        "a negative value must not produce a proof for an unsigned input"
+    );
 }
 
 #[test]
