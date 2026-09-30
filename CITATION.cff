@@ -1,0 +1,25 @@
+# This CITATION.cff file was generated with citation-file-format writer
+# tools; see https://citation-file-format.github.io for the schema.
+cff-version: 1.2.0
+title: tpt-axiom
+message: >-
+  If you use this software, please cite it using the metadata from this file.
+type: software
+authors:
+  - name: TPT Solutions
+    website: 'https://github.com/tpt-solutions'
+repository-code: 'https://github.com/tpt-solutions/tpt-axiom'
+abstract: >-
+  Probabilistic logic and native zero-knowledge state for Rust:
+  uncertainty-propagating arithmetic, a #[zk_provable] macro lowering plain
+  Rust functions to backend-agnostic circuits, real halo2/arkworks proofs,
+  and typed probabilistic decision types for AI workloads.
+keywords:
+  - probability
+  - uncertainty
+  - zero-knowledge
+  - zk
+  - rust
+license: (MIT OR Apache-2.0)
+version: 0.1.0
+date-released: '2026-10-01'

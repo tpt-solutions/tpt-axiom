@@ -1,50 +1,24 @@
-//! # tpt-axiom
-//!
-//! Probabilistic logic and native zero-knowledge state for Rust — an umbrella
-//! crate re-exporting the `tpt-axiom` ecosystem behind the spec's
-//! `use tpt_axiom::prelude::*;`.
-//!
-//! ## Probabilistic types
-//!
-//! ```
-//! use tpt_axiom::prelude::*;
-//!
-//! let pos: Fuzzy<f64> = Fuzzy::new(10.5, 0.5);
-//! let vel: Fuzzy<f64> = Fuzzy::new(2.0, 0.1);
-//! let dt = 0.2_f64;
-//!
-//! let next_pos = pos + vel * dt; // uncertainty propagates automatically
-//! assert!((next_pos.mean() - 10.9).abs() < 1e-9);
-//! ```
-//!
-//! ## Zero-knowledge state
-//!
-//! ```
-//! use tpt_axiom::prelude::*;
-//!
-//! #[zk_provable(backend = "halo2")]
-//! fn prove_balance_transfer(
-//!     #[public] sender_balance: u64,
-//!     #[public] receiver_balance: u64,
-//!     #[secret] amount: u64,
-//! ) {
-//!     assert!(sender_balance >= amount);
-//! }
-//!
-//! let circuit = ProveBalanceTransfer;
-//! let ir = circuit.build();
-//! assert_eq!(ir.num_public(), 2);
-//! ```
-//!
-//! See [`prelude`] for the intended glob import.
+//! The README doubles as the crate documentation: what you read on docs.rs
+//! is what a newcomer reads in the repository, and every runnable snippet in
+//! it is a doctest that fails CI if it drifts from the API.
+#![doc = include_str!("../../../README.md")]
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+
 
 pub use tpt_axiom_core;
 pub use tpt_axiom_ir;
 pub use tpt_axiom_macros;
 pub use tpt_axiom_zk;
+#[cfg(feature = "verify")]
+pub use tpt_axiom_verify;
+#[cfg(feature = "interop")]
+pub use tpt_axiom_interop;
+#[cfg(feature = "halo2")]
+pub use tpt_axiom_backend_halo2;
+#[cfg(feature = "arkworks")]
+pub use tpt_axiom_backend_arkworks;
 
 /// The `tpt-axiom` prelude, matching the spec's `use tpt_axiom::prelude::*;`.
 pub mod prelude {
@@ -57,4 +31,20 @@ pub mod prelude {
     pub use tpt_axiom_ir::{ConstraintSystem, ConstraintSystemBuilder, Scalar};
     pub use tpt_axiom_macros::zk_provable;
     pub use tpt_axiom_zk::{CircuitDefinition, ZkBackend};
+
+    // Opt-in groups (see the crate features): one glob import picks up
+    // everything that is compiled in.
+    #[cfg(feature = "verify")]
+    pub use tpt_axiom_verify::{Comparison, Mismatch, check_comparison, evaluate, normalize_all};
+    #[cfg(feature = "interop")]
+    pub use tpt_axiom_interop::engine::{
+        DecisionEngine, EngineError, EngineOutput, EngineVerdict, MultiLabelOutput,
+        threshold_decision,
+    };
+    #[cfg(feature = "interop")]
+    pub use tpt_axiom_interop::inference::InferenceSample;
+    #[cfg(feature = "halo2")]
+    pub use tpt_axiom_backend_halo2::{Halo2Backend, Halo2Circuit};
+    #[cfg(feature = "arkworks")]
+    pub use tpt_axiom_backend_arkworks::{ArkworksBackend, ArkworksCircuit};
 }

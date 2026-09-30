@@ -1,6 +1,7 @@
 [package]
 name = "tpt-axiom-backend-arkworks"
-description = "Arkworks backend adapter for tpt-axiom (Phase 4)."
+description = "Arkworks Groth16 (BLS12-381) backend adapter for tpt-axiom."
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

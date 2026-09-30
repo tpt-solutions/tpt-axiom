@@ -5,7 +5,7 @@ driver, installed as the `axiom` binary.
 
 Later phases use this binary to generate proving/verifying keys for
 `#[zk_provable]` circuits, invoke verification (including the Phase 3
-`tpt-telos` circuit-equivalence check), and drive the Phase 4 backends.
+circuit-equivalence checks in `tpt-axiom-verify`), and drive the proving backends.
 
 ## Status: Phase 0 scaffolding
 

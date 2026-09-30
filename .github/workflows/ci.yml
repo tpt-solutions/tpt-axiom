@@ -4,6 +4,14 @@ on:
   push:
     branches: [master, main]
   pull_request:
+  # Weekly sweep: catches breaking dependency updates and rot in
+  # rarely-touched jobs (deny advisories, MSRV) even without activity.
+  schedule:
+    - cron: "0 6 * * 1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -20,22 +28,141 @@ jobs:
       - run: cargo fmt --all -- --check
 
   clippy:
-    name: clippy
-    runs-on: ubuntu-latest
+    name: clippy (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
   test:
-    name: test
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace --all-targets --all-features
+      - run: cargo test --workspace --doc
+      # The no_std claim: the core builds against libm without std.
+      - run: cargo build -p tpt-axiom-core --no-default-features --features libm
+      # Cross-compile the foundation for embedded (thumbv7em, no std).
+      - run: rustup target add thumbv7em-none-eabihf
+      - run: cargo build -p tpt-axiom-core --no-default-features --features libm --target thumbv7em-none-eabihf
+      # WebAssembly foundation build.
+      - run: rustup target add wasm32-unknown-unknown
+      - run: cargo build -p tpt-axiom-core --target wasm32-unknown-unknown
+      # Every example must keep running (the halo2 comparison exercises
+      # both real backends end to end).
+      - run: cargo run -p tpt-axiom --example kalman_filter
+      - run: cargo run -p tpt-axiom --example monte_carlo
+      - run: cargo run -p tpt-axiom --example sensor_fusion
+      - run: cargo run -p tpt-axiom-backend-halo2 --example backend_comparison
+
+  msrv:
+    name: msrv
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The declared MSRV must hold for the publishable foundation crate
+      # (dev-dependencies are exempt from MSRV and need a newer rustc, so
+      # only library targets are checked here).
+      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check -p tpt-axiom-core
+      - run: cargo check -p tpt-axiom-core --features serde
+      - run: cargo check -p tpt-axiom-core --no-default-features --features libm
+      - run: cargo check -p tpt-axiom-ir
+      - run: cargo check -p tpt-axiom-zk
+
+  docs:
+    name: docs
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: "-D warnings"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo doc --no-deps --workspace --all-features
+
+  deny:
+    name: deny (licenses + advisories)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@cargo-deny
+      - run: cargo deny check licenses advisories bans
+
+  publish-dry-run:
+    name: publish dry-run
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --workspace --all-targets
-      - run: cargo test --workspace --doc
+      # The release order matters (dependencies first); --allow-dirty is not
+      # needed on CI because the tree is clean there.
+      - run: |
+          for crate in tpt-axiom-ir tpt-axiom-core tpt-axiom-zk tpt-axiom-macros tpt-axiom-verify tpt-axiom-backend-halo2 tpt-axiom-backend-arkworks tpt-axiom-interop tpt-axiom-cli tpt-axiom; do
+            cargo publish --dry-run -p "$crate" || exit 1
+          done
+
+  bench:
+    name: benches compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo bench --no-run --workspace
+
+  semver:
+    name: semver-checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          # Pre-1.0: breaking changes are allowed within 0.x, but the check
+          # still catches accidental removals that should bump a version.
+          release-type: minor
+
+  feature-powerset:
+    name: feature powerset (foundation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-hack
+      # The foundation's feature matrix is small and every combination must
+      # compile (std vs libm, serde on/off, and their crossings).
+      - run: cargo hack check -p tpt-axiom-core --feature-powerset --no-dev-deps
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      # Informational for now (no coverage gate yet); the report makes
+      # untested paths visible in the job log.
+      - run: cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info

@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Workspace Cargo dependencies: grouped so a compatible batch lands as one
+  # PR instead of a flood.
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

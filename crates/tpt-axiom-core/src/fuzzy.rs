@@ -93,6 +93,16 @@ impl<T: Float> Fuzzy<T> {
         Self::new(value, T::zero())
     }
 
+    /// Creates a value from a mean and a standard deviation.
+    ///
+    /// `Fuzzy` stores *variance* (the squared standard error); this
+    /// constructor takes the more human-readable sigma form and squares it.
+    /// `Fuzzy::new(m, v).standard_deviation() == sigma` up to rounding.
+    #[inline]
+    pub fn from_std_dev(mean: T, std_dev: T) -> Self {
+        Self::new(mean, std_dev * std_dev)
+    }
+
     /// The point estimate of the value.
     #[inline]
     pub const fn mean(&self) -> T {
@@ -495,7 +505,10 @@ mod serde_impls {
                     "variance must be non-negative and finite",
                 ))
             } else {
-                Ok(Fuzzy::new_raw(shadow.mean, shadow.variance))
+                Ok(Self {
+                    mean: shadow.mean,
+                    variance: shadow.variance,
+                })
             }
         }
     }

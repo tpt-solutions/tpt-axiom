@@ -1,6 +1,7 @@
 [package]
 name = "tpt-axiom-core"
 description = "Probabilistic and uncertainty types (Fuzzy<T>, Distribution<T>) for tpt-axiom"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

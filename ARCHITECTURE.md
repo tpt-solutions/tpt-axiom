@@ -1,6 +1,6 @@
 # Architecture
 
-This document captures the high-level architecture from [spec.txt](spec.txt)
+This document captures the high-level architecture from [docs/design/spec.md](docs/design/spec.md)
 §3 and maps it onto the crate layout in this workspace.
 
 ## Data/verification flow
@@ -9,8 +9,8 @@ This document captures the high-level architecture from [spec.txt](spec.txt)
 [ Rust Application Logic (Probabilistic / ZK) ]
        │
        ▼
-[ Mathematical IR Generator ] ──(Arithmetic Constraints)──> [ tpt-telos SMT ]
-       │ (Verifies variance propagation & circuit equivalence)
+[ Mathematical IR Generator ] ──(Arithmetic Constraints)──> [ tpt-axiom-verify ]
+       │ (Checks circuit equivalence by polynomial identity)
        ▼
 [ Optimized Probabilistic Code / ZK Circuit (R1CS/PLONK) ]
 ```
@@ -22,11 +22,16 @@ This document captures the high-level architecture from [spec.txt](spec.txt)
   shared, backend-agnostic constraint graph: variance-propagation constraints
   for probabilistic arithmetic, and arithmetic gate/constraint nodes for ZK
   circuits.
-- **`tpt-telos`** (Phase 3, integrated as a workspace dependency) formally
-  verifies that IR against the original Rust semantics — that propagated
-  variance formulas are sound, and that a lowered ZK circuit is equivalent to
-  the asserted constraints in the annotated function body. This is what
-  catches "circuit mismatch" bugs before they reach compiled output.
+- **`tpt-axiom-verify`** checks that IR against reference semantics by exact
+  polynomial identity — that a lowered ZK circuit encodes the comparison the
+  annotated function stated (this is what catches "circuit mismatch" bugs),
+  and that the variance-propagation formulas match the textbook identities
+  where such a check is meaningful (see that crate's docs for the honest
+  limits: a transcription of a two-term sum verifies nothing).
+  (`tpt-telos` was investigated for this role and superseded: its solver is
+  linear-arithmetic-only, while the IR and the variance formulas are
+  genuinely nonlinear; `tpt-axiom-verify`'s canonical-polynomial checker
+  covers those cases with no external dependency.)
 - **The optimized output** is either ordinary compiled Rust (for the
   probabilistic path) or a concrete R1CS/PLONKish circuit plus proving and
   verifying keys, produced by a backend adapter (`tpt-axiom-backend-halo2`,
@@ -72,8 +77,18 @@ Each phase in [todo.md](todo.md) corresponds to a layer of this diagram:
    error-propagation arithmetic. No IR, no ZK.
 2. **Phase 2** — `tpt-axiom-ir` + `tpt-axiom-macros`: lowering Rust to the shared IR,
    with `tpt-axiom-zk`'s `ZkBackend` trait defined as the consumption contract.
-3. **Phase 3** — `tpt-telos` integration: the verification arrow in the
-   diagram above becomes real, catching circuit-mismatch and unsound
-   variance-propagation bugs at build time.
+3. **Verification** — `tpt-axiom-verify`: the verification arrow in the
+   diagram above, catching circuit-mismatch lowering bugs by exact
+   polynomial identity (`cargo test -p tpt-axiom-verify`).
 4. **Phase 4** — `tpt-axiom-backend-*`: concrete `ZkBackend` implementations
    producing real proofs.
+
+## Threat model
+
+The security-relevant guarantees and their current limits (trusted-setup
+status, key provenance being out of scope, the not-yet-audited status) are
+owned by [SECURITY.md](SECURITY.md); that document, not this one, is the
+authoritative statement. Architecturally, the trust boundary is the
+`ZkBackend::verify` call: everything upstream of it (probabilistic types,
+IR construction, witness preparation) is untrusted computation, and the
+verifier consumes only the verifying key, the public inputs, and the proof.

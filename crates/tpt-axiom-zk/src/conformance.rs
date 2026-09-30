@@ -13,7 +13,7 @@
 //!
 //! Each driver covers the happy path plus the rejection paths: tampered
 //! public inputs must fail verification, and violating secret witnesses must
-//! fail proving. Backend errors are only required to implement [`Display`],
+//! fail proving. Backend errors are only required to implement `core::fmt::Display`,
 //! so failures are reported through their display form.
 
 use alloc::vec::Vec;

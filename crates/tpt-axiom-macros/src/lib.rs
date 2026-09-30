@@ -5,8 +5,9 @@
 //! [`#[zk_provable]`](macro@crate::zk_provable) analyzes an ordinary Rust
 //! function and generates:
 //!
-//! 1. the original function unchanged (the "source of truth" Rust logic, used
-//!    by the Phase 3 `tpt-telos` equivalence bridge), and
+//! 1. the original function unchanged (the "source of truth" Rust logic,
+//!    cross-checked against the IR by `tpt-axiom-verify`'s equivalence
+//!    tests), and
 //! 2. a `CircuitDefinition` implementation (from `tpt-axiom-zk`) that lowers
 //!    the function's
 //!    arithmetic constraints into a backend-agnostic

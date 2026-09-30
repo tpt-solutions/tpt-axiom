@@ -1,0 +1,9 @@
+# Dev-toolchain pin for reproducible local/CI builds.
+#
+# The workspace's declared MSRV is 1.85 (workspace.package.rust-version) and
+# applies to the *published* library crates; the current dev-dependency lock
+# (trybuild 1.0.121, enum-ordinalize 4.4) needs a newer rustc to compile, so
+# this pin is that floor. CI checks the 1.85 MSRV separately against the
+# publishable crates only.
+[toolchain]
+channel = "1.89.0"

@@ -1,6 +1,7 @@
 [package]
 name = "tpt-axiom-backend-halo2"
-description = "halo2 ZkBackend adapter for tpt-axiom (Phase 4)"
+description = "halo2 (IPA/Vesta) ZkBackend adapter for tpt-axiom"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

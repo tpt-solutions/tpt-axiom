@@ -2,7 +2,7 @@
 
 Thanks for your interest in contributing! `tpt-axiom` is developed
 phase-by-phase against [todo.md](todo.md); please check there (and
-[spec.txt](spec.txt) / [ARCHITECTURE.md](ARCHITECTURE.md)) for the current
+[docs/design/spec.md](docs/design/spec.md) / [ARCHITECTURE.md](ARCHITECTURE.md)) for the current
 phase and design before starting work, to avoid overlapping with in-progress
 efforts.
 

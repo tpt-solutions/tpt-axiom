@@ -1,6 +1,7 @@
 [package]
 name = "tpt-axiom-backend-sp1"
-description = "SP1 ZkBackend adapter for tpt-axiom (Phase 4)"
+description = "SP1 ZkBackend adapter contract for tpt-axiom (proving deferred)"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +12,10 @@ homepage.workspace = true
 documentation.workspace = true
 keywords = ["zero-knowledge", "sp1", "zkvm", "backend", "risc-v"]
 categories = ["cryptography", "mathematics"]
+
+# The contract compiles but no proof can be produced until the SP1
+# toolchain (Linux/macOS-only) lands; keep it off crates.io until then.
+publish = false
 
 [lints]
 workspace = true

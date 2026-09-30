@@ -1,15 +1,12 @@
 //! # tpt-axiom-cli
 //!
-//! The `tpt-axiom` build-time driver.
+//! The `tpt-axiom` build-time driver, invocable as `cargo axiom` (the binary
+//! is named `cargo-axiom`, cargo's subcommand convention).
 //!
-//! Later phases use this binary to generate proving/verifying keys for
-//! `#[zk_provable]` circuits, invoke verification (the Phase 3
-//! `tpt-axiom-verify` circuit/variance-formula checks), and drive the
-//! Phase 4 backends.
-//!
-//! **Status: Phase 0 scaffolding.** The command surface exists so scripts and
-//! CI can call `axiom <command>` today; the commands themselves are stubs that
-//! exit non-zero with a clear "not implemented yet" message.
+//! The command surface exists so scripts and CI can call `cargo axiom
+//! <command>` today; `verify` points at the working `tpt-axiom-verify` test
+//! suite, and the remaining commands are stubs that exit non-zero with a
+//! clear "not implemented yet" message.
 
 use std::process::ExitCode;
 

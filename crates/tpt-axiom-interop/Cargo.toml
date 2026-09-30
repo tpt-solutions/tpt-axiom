@@ -1,6 +1,7 @@
 [package]
 name = "tpt-axiom-interop"
 description = "Conversion interfaces between tpt-axiom and the TPT AI ecosystem (Augur, inference runtimes)"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

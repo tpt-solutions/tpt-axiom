@@ -55,16 +55,12 @@ fn categorical_rejects_non_normal_payloads() {
 }
 
 #[test]
-fn evidence_rejects_non_positive_weights() {
-    for bad in [
-        r#"{"observation":"x","log_weight":0.0,"provenance":{"origin":"o","timestamp_secs":null,"revision":null}}"#,
-    ] {
-        // log_weight 0.0 == weight 1.0 is fine; a NaN log weight is not
-        // representable in JSON, so attack the linear constructor's domain
-        // through the deserializer's validation path instead.
-        let ok: Evidence<&str> = serde_json::from_str(bad).unwrap();
-        assert_eq!(ok.weight(), 1.0);
-    }
+#[allow(clippy::float_cmp)] // round-tripped log weight is bit-exact
+fn evidence_weights_survive_the_boundary() {
+    // A zero log weight (weight 1.0) deserializes fine.
+    let zero = r#"{"observation":"x","log_weight":0.0,"provenance":{"origin":"o","timestamp_secs":null,"revision":null}}"#;
+    let ok: Evidence<&str> = serde_json::from_str(zero).unwrap();
+    assert!((ok.weight() - 1.0).abs() < 1e-15);
     // A huge log weight is *accepted* (stored exactly) and reads back as an
     // infinite linear weight — the overflow lives in the data, not a panic.
     let huge = r#"{"observation":"x","log_weight":1.0e308,"provenance":{"origin":"o","timestamp_secs":null,"revision":null}}"#;

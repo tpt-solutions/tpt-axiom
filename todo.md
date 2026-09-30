@@ -1,6 +1,6 @@
 # tpt-axiom TODO
 
-Probabilistic Logic and Native Zero-Knowledge State for Rust. Tracks all work for the whole project, phase by phase. See [spec.txt](spec.txt) for the design.
+Probabilistic Logic and Native Zero-Knowledge State for Rust. Tracks all work for the whole project, phase by phase. See [docs/design/spec.md](docs/design/spec.md) for the design.
 
 License: dual **MIT OR Apache-2.0**. Author: **TPT Solutions**.
 

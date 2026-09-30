@@ -1,6 +1,7 @@
 [package]
 name = "tpt-axiom-ir"
 description = "Shared arithmetic intermediate representation (variance-propagation + ZK circuit constraints) for tpt-axiom"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

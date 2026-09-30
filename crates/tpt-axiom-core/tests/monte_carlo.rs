@@ -43,7 +43,7 @@ fn sample_moments(samples: impl Iterator<Item = f64>) -> (f64, f64) {
         sumsq = x.mul_add(x, sumsq);
     }
     let mean = sum / n as f64;
-    let var = sumsq / n as f64 - mean * mean;
+    let var = sumsq / n as f64 - mean.mul_add(mean, 0.0);
     (mean, var)
 }
 
@@ -156,7 +156,7 @@ fn monte_carlo_kalman_fusion() {
             .standard_deviation()
             .mul_add(rng.next_gaussian(), b.mean());
         // Optimal two-measurement combination, m* = (m_a v_b + m_b v_a)/(v_a+v_b).
-        (ra * b.variance() + rb * a.variance()) / (a.variance() + b.variance())
+        (ra.mul_add(b.variance(), rb * a.variance())) / (a.variance() + b.variance())
     }));
     assert_close("fusion mean", em, fused.mean(), 1e-3);
     assert_close("fusion variance", ev, fused.variance(), 2e-2);

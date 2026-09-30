@@ -1,6 +1,7 @@
 [package]
 name = "tpt-axiom"
 description = "Probabilistic logic and native zero-knowledge state for Rust"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -15,11 +16,29 @@ categories.workspace = true
 [lints]
 workspace = true
 
+[features]
+# The always-present foundation: probabilistic types, the IR, the
+# `#[zk_provable]` macro, and the backend-agnostic `ZkBackend` contract.
+# Everything heavier is opt-in.
+default = []
+# `tpt-axiom-verify`: polynomial-identity circuit/variance checking.
+verify = ["dep:tpt-axiom-verify"]
+# `tpt-axiom-interop`: Augur conversions, the inference boundary, and the
+# vendor-neutral engine interfaces.
+interop = ["dep:tpt-axiom-interop"]
+# Real proving backends (each pulls its proving stack).
+halo2 = ["dep:tpt-axiom-backend-halo2"]
+arkworks = ["dep:tpt-axiom-backend-arkworks"]
+
 [dependencies]
 tpt-axiom-core = { workspace = true }
 tpt-axiom-ir = { workspace = true }
 tpt-axiom-macros = { workspace = true }
 tpt-axiom-zk = { workspace = true }
+tpt-axiom-verify = { workspace = true, optional = true }
+tpt-axiom-interop = { workspace = true, optional = true }
+tpt-axiom-backend-halo2 = { workspace = true, optional = true }
+tpt-axiom-backend-arkworks = { workspace = true, optional = true }
 
 # docs.rs builds with every feature so all doc examples render.
 [package.metadata.docs.rs]
