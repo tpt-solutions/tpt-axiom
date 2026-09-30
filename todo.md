@@ -137,3 +137,84 @@ License: dual **MIT OR Apache-2.0**. Author: **TPT Solutions**.
 - [x] Add comprehensive property-based tests for probabilistic invariants — `crates/tpt-axiom-core/tests/properties.rs` (proptest: complement partitioning, noisy-OR/conjunct domination, categorical normalization + entropy bounds, evidence-weight closure, policy/threshold agreement, Bayesian renormalization).
 - [x] Add conformance tests for all probabilistic types — unit suites per type in `intelligence`/`decision_types`, plus the invariant properties above and the wire-format roundtrips.
 - [x] Document the mathematical and semantic meaning of every public type — module docs state each type's semantics (probability vs confidence distinction, first-order propagation limits, policy ownership); `cargo doc` builds warning-free.
+
+
+## Platform Review Follow-ups (2026-10-01)
+
+Findings come from a read-only code review; reproduce each bug with a failing test before fixing. Phases A-E below.
+
+### Phase A: Correctness & Soundness
+#### A1. ZK soundness
+- [ ] Carry declared integer type `(bits, signed)` per variable into the IR and use it in halo2/arkworks range checks (currently every parameter is treated as signed i64; `u8`/`u64` params accept out-of-width values) — `lower.rs`, `ir/circuit.rs`, backend `circuit.rs`
+- [ ] Enforce `let x: u8 = ...` type ascriptions (currently dropped silently)
+- [ ] Range-check intermediate `Mul` results (or track static bit-width bounds and reject circuits nearing ~250 bits) so field wraparound cannot satisfy constraints
+- [ ] Evaluate witnesses in `i128`/bigint instead of wrapping `i64` (`zk/witness.rs`); wider check for `NonNegative` operands
+- [ ] Make non-final `return;` a compile error (`lower.rs:277`)
+- [ ] Support `&&` inside `assert!` and add `debug_assert*` (`lower.rs`)
+- [ ] `verify` returns `Ok(false)` (not `Err`) on wrong public-input count (halo2 + arkworks)
+- [ ] `ProofClaim` commits to a vk/IR digest and `verify_with` checks it
+- [ ] Document Groth16 per-circuit trusted setup / toxic waste
+- [ ] Fix range-bits docs ("max 255" vs actual cap of 64) or return an error above 64
+- [ ] `ConstraintSystem::validate()` + private fields; return `Result` instead of `expect` on malformed IR
+- [ ] Checked/i128 arithmetic in `verify/poly.rs`, `verify/circuit.rs`, `ir/r1cs.rs::evaluate`
+- [ ] `verify/fuzzy.rs` add/sub checks are tautological — derive from real `Fuzzy` code or drop the verification claim
+- [ ] Precompute variable-to-expression map (O(n^2) lookups in backends/witness)
+- [ ] Negative tests for all of the above (adversarial witnesses via `with_witness_unchecked`, trybuild ui cases)
+
+#### A2. Core numerics (`tpt-axiom-core`)
+- [ ] Serde deserialization must enforce invariants (`Probability`, `Confidence`, `Categorical`, `Evidence`, `Fuzzy`, `Uncertain`) via `try_from`/shadow structs + negative-payload tests
+- [ ] `Fuzzy` `/` and `*` by exact zero/inf must not panic on NaN variance (unchecked internal ctor and/or `checked_div`)
+- [ ] `fuse` with zero variances (0/0) — add `checked_fuse`
+- [ ] `norm_ppf` panic for confidence near 1 (`fuzzy.rs::confidence_interval`) — use `0.5 + c/2`
+- [ ] `Distribution::sample` panics when RNG returns 0.0 — clamp
+- [ ] `norm_ppf` far-tail branch + accurate `erfc`-based `erf`/`norm_cdf`; correct the "1.15e-9" doc claim
+- [ ] Make `num-traits` `std` optional (`std`/`libm` features) so the `no_std` claim is true; add thumbv7em CI check
+- [ ] Checked constructors for `Gaussian`, `Calibration`, `Provenance` (public fields bypass validation)
+- [ ] Normalize zero-variance `Gaussian` and `Constant`; `TryFrom<Distribution> for Fuzzy` accepts `Constant`
+- [ ] `Categorical::new`: strict constructor erroring on NaN/negative weights; distinct overflow error
+- [ ] `Evidence::combine` / `InferenceSample::to_evidence`: store log-weights
+- [ ] `Probability`: normalize `-0.0`; rename panicking `new_unchecked`
+- [ ] `Confidence`: add `Ord`/`Eq`/`Display`; add `Default` impls
+- [ ] Drop derived `Eq` on float-backed types or reject non-finite mean
+- [ ] Docs: division formula is not "exact", loud independence warning (`x - x` has variance `2v`), `z_score` with zero sigma
+
+#### A3. Interop
+- [ ] Augur bridge: accept `sigma == 0` and map to `Constant`, validate variance after squaring (round trip currently fails)
+- [ ] Non-Normal families: rename to `*_approx` or return error instead of silent moment-matching
+- [ ] `variance.max(0.0)` swallows NaN in `from_distribution`
+- [ ] Reject duplicate labels in `MultiLabelOutput`
+- [ ] Document/reject `active_at <= 0.5` in binary `threshold_decision`
+
+### Phase B: Credibility & Adoption Blockers
+- [x] Verified: README headline output is wrong (variance 0.6 gives sigma 0.775, not 0.742)
+- [ ] Fix README headline output, clarify variance vs std-dev; add `Fuzzy::from_std_dev`
+- [ ] Make README a doctest (`#![doc = include_str!("../README.md")]`); fix section 3 snippet; document the intelligence/AI-foundation types; replace "Phase N" framing with works-today / experimental / missing
+- [ ] `SECURITY.md`, not-audited banner, threat model in `ARCHITECTURE.md`
+- [ ] Umbrella crate feature flags (`halo2`, `arkworks`, `interop`, `verify`) + grouped prelude
+- [ ] crates.io readiness: `readme =` on each crate, confirm `tpt-augur-std` availability, remove unused CLI deps, `publish = false` on sp1/stubs, drop "Phase 4" from descriptions, remove stale `tpt-telos` mentions, `cargo-axiom` binary name, release-plz publish order (ir, core, zk, macros, verify, backends, umbrella)
+- [ ] Repo hygiene: commit `Cargo.lock`; add `CODE_OF_CONDUCT.md`, `CITATION.cff`, `CODEOWNERS`, `deny.toml`, `rust-toolchain.toml`, `dependabot.yml`, issue-template `config.yml`; untrack `.kilo`/`.mimocode`; user-facing `ROADMAP.md`; move `spec.txt` to `docs/design/`; single changelog strategy
+- [ ] CI: MSRV 1.85, Windows/macOS matrix, cargo-deny + audit, `-D warnings` docs (all-features), semver-checks, llvm-cov, cargo-hack powerset, wasm32 + thumbv7em builds, `cargo bench --no-run`, run all examples, `cargo publish --dry-run`, concurrency cancel, weekly schedule
+
+### Phase C: Usability & Automation
+- [ ] Macro-generated typed input structs + typed `prove`/`verify`; name-keyed witness API; public-input layout printout; typed `KeygenOptions`
+- [ ] Circuit registry (`inventory`/`linkme`) so the mismatch detector runs automatically (`cargo axiom check`)
+- [ ] Real CLI as `cargo axiom`: `new`, `doctor`, `inspect circuit`, `check`, `keygen|prove|verify --in inputs.json`, `bench`, `explain`; clap, `--json`, completions
+- [ ] Serialization: persist halo2 vk/params, versioned proof envelope with IR hash, `from_bytes`, serde on `ProofClaim`, `std::error::Error` + `Display` on all error types
+- [ ] More macro ui tests + helpful suggestions (floats, `if`/`match`, `!=`, calls); validated `backend = "..."`
+
+### Phase D: Missing Features & Innovation
+- [ ] Correlated uncertainty (`CorrelatedFuzzy` / covariance vector with Jacobian propagation)
+- [ ] Nonlinear ops on `Fuzzy` (`exp`, `ln`, `sqrt`, `powi`, `tanh`) with second-order mean correction; unscented-transform and Monte Carlo propagation modes
+- [ ] More distributions (Uniform, Beta, Gamma, LogNormal, Student-t, Poisson, Binomial, mixtures); `pdf`/`cdf`/`quantile`; `prob_greater_than`; KL; `Sum`/`Product`; N-way fusion; conjugate updates; `from_logits`/`top_k`/`cross_entropy` in core
+- [ ] Verifiable uncertain claims: prove a fused `Fuzzy` estimate/decision meets a threshold without revealing raw readings (fixed-point `Fuzzy` in-circuit)
+- [ ] Proof-carrying `DecisionRecord`
+- [ ] Gadgets: range proof, Poseidon, Merkle membership, bounded `for` unrolling, `!=`, `if`, division via witnessed quotient/remainder
+- [ ] WASM browser playground (constraint/R1CS/halo2-row viewer; Fuzzy vs Monte Carlo demo)
+- [ ] WASM / on-chain verifier (Groth16 BLS12-381; Solidity verifier generator stretch)
+
+### Phase E: Examples, Templates & Docs
+- [ ] Examples (each with README + expected output, run in CI): age/range proof (README lead), verifiable sensor-fusion claim, private credit-score threshold, ML decision with abstention, A/B test, separate prover/verifier services with proof files, custom-backend skeleton using the conformance suite
+- [ ] Move examples into a workspace `examples/` crate
+- [ ] `tpt-axiom-template` for `cargo generate` + `cargo axiom new --template age-proof|credit|sensor`
+- [ ] Docs site (mdBook): tutorial, cookbook, when-to-use guide, comparison table, FAQ, honest-limits page, expanded `ARCHITECTURE.md` with "write a backend" guide
+- [ ] README badges (crates.io, docs.rs, CI, MSRV, licence) and benchmark CPU/command details
