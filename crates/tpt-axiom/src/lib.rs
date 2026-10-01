@@ -49,5 +49,8 @@ pub mod prelude {
     pub use tpt_axiom_verify::{Comparison, Mismatch, check_comparison, evaluate, normalize_all};
 
     pub use crate::audit::ProofCarriedDecision;
-    pub use tpt_axiom_zk::{ProofClaim, ProofEnvelope, ir_digest};
+    pub use tpt_axiom_zk::{
+        InputLayout, KeygenOptions, NamedWitness, ProofClaim, ProofEnvelope, ir_digest, keygen,
+        prove_named, verify_claim,
+    };
 }

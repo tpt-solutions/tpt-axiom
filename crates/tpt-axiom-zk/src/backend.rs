@@ -5,6 +5,8 @@ use core::fmt::Display;
 
 use tpt_axiom_ir::{CircuitError, ConstraintSystem, R1CS, Scalar};
 
+use crate::options::KeygenOptions;
+
 /// A zero-knowledge proving backend (halo2, arkworks, sp1, …).
 ///
 /// Implementations translate an [`ConstraintSystem`] into the backend's native
@@ -59,6 +61,23 @@ pub trait ZkBackend {
         ir: &ConstraintSystem,
         params: &[u8],
     ) -> Result<(Self::ProvingKey, Self::VerifyingKey), Self::Error>;
+
+    /// [`KeygenOptions`] flavour of [`Self::generate_keys`]: the same call with
+    /// validated, typed parameters.
+    ///
+    /// Backends get this for free — the options are encoded into the byte form
+    /// the trait already speaks — so a backend only overrides it to accept
+    /// parameters the blob cannot express.
+    ///
+    /// # Errors
+    /// Backend-specific failure during parameter generation or key derivation.
+    fn generate_keys_with_options(
+        &self,
+        ir: &ConstraintSystem,
+        options: &KeygenOptions,
+    ) -> Result<(Self::ProvingKey, Self::VerifyingKey), Self::Error> {
+        self.generate_keys(ir, &options.encode())
+    }
 
     /// Produce a proof for an assignment of the circuit's inputs.
     ///

@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Phase C typed proving path: `#[zk_provable]` now generates a `<Fn>Inputs`
+  struct carrying one field per parameter at its declared Rust type, with
+  `new(..)`, `public_names()`, `secret_names()`, `named()` and, for returning
+  circuits, `with_output(..)`.
+- `tpt_axiom_zk::named::NamedWitness`: name-keyed witness assignment. Values
+  resolve onto the positional form only after the map is checked complete
+  against the circuit's IR, so a transposed or half-filled witness cannot
+  restate the claim; an unsigned 64-bit value above the IR's `i64` scalar model
+  is a named error, never a silent cast.
+- `tpt_axiom_zk::layout::InputLayout`: the public-input layout printout — every
+  slot's name, visibility, declared type, and whether it is the circuit output.
+- `tpt_axiom_zk::options::KeygenOptions`: typed key-generation parameters with
+  validated ranges, exposed as `ZkBackend::generate_keys_with_options` (the
+  existing byte encoding is unchanged).
+- `tpt_axiom_zk::driver`: `keygen`, `prove_named`, `prove_ir_named`, and
+  `verify_claim` — one checked path from a typed input struct to a verified
+  proof, with IR validation, witness resolution, and the constraint check
+  performed before any proving work.
+
 - Phase 4: `tpt-axiom-backend-halo2` — real `ZkBackend` for halo2
   (`halo2_proofs` 0.3, IPA/Vesta): PLONKish lowering of the IR with selector
   gates and copy constraints, bit-decomposition range checks giving sound

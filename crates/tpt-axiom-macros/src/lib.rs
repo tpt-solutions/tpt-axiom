@@ -7,11 +7,37 @@
 //!
 //! 1. the original function unchanged (the "source of truth" Rust logic,
 //!    cross-checked against the IR by `tpt-axiom-verify`'s equivalence
-//!    tests), and
+//!    tests),
 //! 2. a `CircuitDefinition` implementation (from `tpt-axiom-zk`) that lowers
 //!    the function's
 //!    arithmetic constraints into a backend-agnostic
-//!    `tpt_axiom_ir::ConstraintSystem`.
+//!    `tpt_axiom_ir::ConstraintSystem`, and
+//! 3. a typed `<Fn>Inputs` struct with one field per parameter at that
+//!    parameter's declared Rust type, whose `named()` method produces a
+//!    `NamedWitness` for `tpt_axiom_zk::prove_named`.
+//!
+//! ```ignore
+//! use tpt_axiom_macros::zk_provable;
+//!
+//! #[zk_provable(backend = "halo2")]
+//! fn prove_balance_transfer(
+//!     #[public] sender_balance: u64,
+//!     #[public] receiver_balance: u64,
+//!     #[secret] amount: u64,
+//! ) {
+//!     assert!(sender_balance >= amount);
+//! }
+//!
+//! // The macro also generates `ProveBalanceTransferInputs`:
+//! let inputs = ProveBalanceTransferInputs::new(50, 20, 30);
+//! let witness = inputs.named()?;
+//! ```
+//!
+//! The typed inputs matter because the positional witness slices a backend
+//! takes are easy to transpose: two adjacent `u64` fields swapped in the wrong
+//! order yield a well-formed witness for a *different* statement. Keying values
+//! by name, and refusing to resolve a name map that is not exactly the
+//! circuit's input set, closes that hole.
 //!
 //! ```ignore
 //! use tpt_axiom_macros::zk_provable;

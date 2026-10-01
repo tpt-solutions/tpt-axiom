@@ -12,7 +12,11 @@
 //!   `tpt-axiom-backend-arkworks`, `tpt-axiom-backend-sp1`) implement to compile
 //!   an IR circuit, generate keys, prove, and verify.
 //!
-//! No real backend is wired up yet (Phase 4); this crate defines the contract.
+//! Around those sit the caller-facing pieces: [`named::NamedWitness`] builds a
+//! witness by input *name* and refuses to resolve it onto the positional form
+//! unless it is complete, [`layout::InputLayout`] prints what a verifier sees,
+//! [`options::KeygenOptions`] types the key-generation parameters, and
+//! [`driver`] ties it together as `prove_named` / `verify_claim`.
 
 #![no_std]
 #![forbid(unsafe_code)]
@@ -28,8 +32,16 @@ mod circuit;
 pub mod claim;
 #[cfg(feature = "conformance")]
 pub mod conformance;
+pub mod driver;
+pub mod layout;
+pub mod named;
+pub mod options;
 pub mod witness;
 
 pub use crate::backend::ZkBackend;
 pub use crate::circuit::CircuitDefinition;
 pub use crate::claim::{ENVELOPE_VERSION, ProofClaim, ProofEnvelope, ir_digest};
+pub use crate::driver::{ProveError, keygen, prove_ir_named, prove_named, verify_claim};
+pub use crate::layout::{InputLayout, InputSlot};
+pub use crate::named::{NamedWitness, NamedWitnessError, WitnessValues};
+pub use crate::options::{KeygenOptions, KeygenOptionsError};

@@ -192,6 +192,128 @@ fn u64_parameters_are_recorded_as_unsigned() {
     assert_eq!(ir.expr_int_type(sender), Some(IntType::U64));
 }
 
+// --- macro-generated typed inputs (todo.md Phase C: typed input structs,
+// --- name-keyed witness API, public-input layout, typed prove/verify)
+
+#[test]
+fn typed_inputs_carry_each_parameter_declared_type() {
+    let inputs = NarrowTypesInputs::new(7, 3, -5);
+    // Field types are the parameters' own types, so a wrong-typed value is a
+    // compile error rather than a runtime surprise.
+    let _: u8 = inputs.small;
+    let _: u8 = inputs.delta;
+    let _: i16 = inputs.offset;
+    assert_eq!(NarrowTypesInputs::public_names(), ["small", "offset"]);
+    assert_eq!(NarrowTypesInputs::secret_names(), ["delta"]);
+}
+
+#[test]
+fn typed_inputs_resolve_onto_the_circuit_in_declaration_order() {
+    let inputs = ProveBalanceTransferInputs::new(50, 20, 30);
+    let witness = inputs.named().expect("values fit the IR's scalar model");
+    let ir = ProveBalanceTransfer.build();
+    let values = witness.resolve(&ir).expect("witness names every input");
+    assert_eq!(values.public(), &[50, 20]);
+    assert_eq!(values.secret(), &[30]);
+    assert!(values.check(&ir).is_ok());
+}
+
+#[test]
+fn field_order_in_the_literal_is_irrelevant() {
+    // The whole point of keying by name: reading two u64 fields in the wrong
+    // order cannot silently restate the claim.
+    let ordered = ProveBalanceTransferInputs::new(50, 20, 30);
+    let mut shuffled = ProveBalanceTransferInputs::new(20, 50, 30);
+    shuffled.sender_balance = ordered.sender_balance;
+    shuffled.receiver_balance = ordered.receiver_balance;
+    let ir = ProveBalanceTransfer.build();
+    let a = ordered.named().expect("fits").resolve(&ir).expect("named");
+    let b = shuffled.named().expect("fits").resolve(&ir).expect("named");
+    assert_eq!(a, b);
+}
+
+#[test]
+fn a_constraint_violating_input_set_is_rejected_by_name() {
+    // `amount` above `sender_balance` must not resolve into a provable witness.
+    let inputs = ProveBalanceTransferInputs::new(10, 20, 30);
+    let ir = ProveBalanceTransfer.build();
+    assert!(
+        inputs
+            .named()
+            .expect("values fit")
+            .resolve_and_check(&ir)
+            .is_err()
+    );
+}
+
+#[test]
+fn an_unsigned_value_above_the_scalar_model_is_named_not_cast() {
+    // The IR models scalars as i64; a u64 above i64::MAX must be refused
+    // rather than wrapped into a negative number that proves something else.
+    let inputs = ProveBalanceTransferInputs::new(u64::MAX, 0, 1);
+    assert_eq!(
+        inputs.named().unwrap_err(),
+        tpt_axiom_zk::NamedWitnessError::ScalarOutOfRange {
+            name: "sender_balance"
+        }
+    );
+    // A u64 inside the model converts fine.
+    let ok = ProveBalanceTransferInputs::new(1 << 40, 0, 1);
+    assert_eq!(
+        ok.named().expect("1 << 40 fits i64").get("sender_balance"),
+        Some(1 << 40)
+    );
+}
+
+#[test]
+fn a_returning_circuit_binds_its_output_explicitly() {
+    let inputs = WeightedSumInputs::new(2, 3, 4);
+    // The output slot is public but computed, so `named()` alone cannot resolve.
+    let ir = WeightedSum.build();
+    let without_output = inputs.named().expect("values fit");
+    assert_eq!(
+        without_output.resolve(&ir),
+        Err(tpt_axiom_zk::NamedWitnessError::MissingInput {
+            name: "return".to_owned(),
+            kind: "public",
+            index: 2,
+        })
+    );
+    let with_output = WeightedSumInputs::with_output(without_output, 11);
+    let values = with_output
+        .resolve_and_check(&ir)
+        .expect("complete witness");
+    assert_eq!(values.public(), &[2, 3, 11]);
+    assert_eq!(values.secret(), &[4]);
+}
+
+#[test]
+fn the_layout_printout_lists_what_a_verifier_sees() {
+    let ir = WeightedSum.build();
+    let layout = tpt_axiom_zk::InputLayout::of(&ir);
+    let names: Vec<&str> = layout
+        .public_slots()
+        .iter()
+        .map(|s| s.name.as_str())
+        .collect();
+    assert_eq!(names, ["a", "b", "return"]);
+    assert!(layout.public_slots()[2].is_output);
+    let printed = layout.to_string();
+    assert!(printed.contains("return (output)"), "printed: {printed}");
+    assert!(printed.contains("secret #0  k"), "printed: {printed}");
+    // The generated names agree with the IR's own classification.
+    assert_eq!(WeightedSumInputs::public_names(), ["a", "b"]);
+    assert_eq!(WeightedSumInputs::secret_names(), ["k"]);
+}
+
+#[test]
+fn generated_inputs_are_copy_and_comparable() {
+    // Needed so a caller can hold several candidate input sets at once.
+    let a = BoundsCheckInputs::new(5, 0, 10);
+    let b = a;
+    assert_eq!(a, b);
+}
+
 // Cross-checks the IR against the kept-original Rust function on sampled
 // inputs, using `tpt-axiom-verify`'s concrete evaluator. This is the
 // practical stand-in for "a deliberately-broken circuit is caught" from
