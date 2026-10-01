@@ -160,6 +160,16 @@ jobs:
       # compile (std vs libm, serde on/off, and their crossings).
       - run: cargo hack check -p tpt-axiom-core --feature-powerset --no-dev-deps
 
+  book:
+    name: docs book
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jontyy/mdbook-actions@master
+        with:
+          mdbook-version: latest
+      - run: mdbook build docs/book
+
   coverage:
     name: coverage
     runs-on: ubuntu-latest

@@ -8,9 +8,12 @@ required by autonomous systems, quantitative finance, and Web3 — letting you
 write probabilistic algorithms and zero-knowledge circuits in standard Rust
 syntax, with the compiler handling the heavy mathematical lifting.
 
-See [the design document](docs/design/spec.md) for the full spec and
-[ARCHITECTURE.md](ARCHITECTURE.md) for how the pieces fit together. Development
-is tracked phase-by-phase in [todo.md](todo.md).
+See the [book](docs/book/src/intro.md) (mdBook source; `mdbook build
+docs/book`) for the guided tour, [the design document](docs/design/spec.md)
+for the full spec, and [ARCHITECTURE.md](ARCHITECTURE.md) for how the pieces
+fit together. Development is tracked phase-by-phase in [todo.md](todo.md).
+Starting a new project? `crates/tpt-axiom-template` is a `cargo generate`
+template with a working circuit and test.
 
 License: dual **MIT OR Apache-2.0**. Author: **TPT Solutions**.
 
