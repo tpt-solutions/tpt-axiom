@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tpt-axiom playground</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    max-width: 60rem;
+    margin: 0 auto;
+    padding: 1.5rem;
+    line-height: 1.5;
+  }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #8884; padding-bottom: .2rem; }
+  label { display: block; margin: .4rem 0 .1rem; font-size: .9rem; color: #888; }
+  input, select, button {
+    font: inherit; padding: .35rem .5rem; border: 1px solid #8886;
+    border-radius: .3rem; background: transparent; color: inherit;
+  }
+  button { cursor: pointer; }
+  pre {
+    background: #8881; padding: .7rem .9rem; border-radius: .4rem;
+    white-space: pre-wrap; font-size: .85rem; min-height: 1.2rem;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .5rem; }
+  .row { display: flex; gap: .5rem; align-items: end; flex-wrap: wrap; }
+  .muted { color: #888; font-size: .85rem; }
+  code { background: #8882; padding: .05rem .3rem; border-radius: .2rem; }
+</style>
+</head>
+<body>
+<h1>tpt-axiom playground</h1>
+<p class="muted">
+  Everything runs locally in your browser over the same Rust crates the
+  native examples use — no prover here (the proving stacks are
+  native-only), just the circuit IR and the uncertainty arithmetic.
+</p>
+
+<h2>Circuit inspector</h2>
+<div class="row">
+  <div>
+    <label for="circuit">demo circuit</label>
+    <select id="circuit">
+      <option value="balance_transfer">balance_transfer</option>
+      <option value="weighted_sum">weighted_sum</option>
+      <option value="bounds_check">bounds_check</option>
+      <option value="division">division (gadget)</option>
+    </select>
+  </div>
+  <button id="inspect">inspect</button>
+</div>
+<pre id="circuit-out">(pick a circuit and press inspect)</pre>
+
+<h2>Minimum-variance fusion</h2>
+<p class="muted">
+  Two estimates of the same quantity: fusion is provably tighter than
+  plain addition of independent errors.
+</p>
+<div class="grid">
+  <div><label for="am">A mean</label><input id="am" type="number" value="10.5" step="0.1"></div>
+  <div><label for="av">A variance</label><input id="av" type="number" value="0.04" step="0.01" min="0"></div>
+  <div><label for="bm">B mean</label><input id="bm" type="number" value="10.7" step="0.1"></div>
+  <div><label for="bv">B variance</label><input id="bv" type="number" value="0.09" step="0.01" min="0"></div>
+  <div><button id="fuse" style="align-self:end">fuse</button></div>
+</div>
+<pre id="fuse-out"></pre>
+
+<h2>Delta method vs. Monte Carlo — <code>exp(x)</code></h2>
+<p class="muted">
+  First-order propagation reports <code>exp(mean)</code> and misses the
+  curvature entirely; Monte Carlo approaches the exact lognormal answer
+  <code>exp(mean + variance/2)</code>. Fixed seed, so the result is
+  reproducible.
+</p>
+<div class="grid">
+  <div><label for="em">mean</label><input id="em" type="number" value="0"></div>
+  <div><label for="ev">variance</label><input id="ev" type="number" value="0.25" step="0.05" min="0"></div>
+  <div><label for="en">samples</label><input id="en" type="number" value="200000" step="10000" min="1000"></div>
+  <div><button id="run-exp" style="align-self:end">run</button></div>
+</div>
+<pre id="exp-out"></pre>
+
+<p class="muted">
+  <strong>Not audited.</strong> Demonstration surface only — see the
+  repository's SECURITY.md. Source:
+  <code>crates/tpt-axiom-wasm</code>, rebuilt with
+  <code>wasm-pack build crates/tpt-axiom-wasm --target web --out-dir
+  ../../docs/playground/pkg</code>.
+</p>
+
+<script type="module">
+  import init, { circuit_catalog, circuit_describe, circuit_r1cs_shape, fuse_demo, exp_demo }
+    from "./pkg/tpt_axiom_wasm.js";
+  await init();
+
+  const $ = (id) => document.getElementById(id);
+  const show = (id, text) => { $(id).textContent = text; };
+  const num = (id) => Number($(id).value);
+
+  $("circuit-out").textContent = circuit_catalog();
+
+  $("inspect").onclick = () => {
+    const name = $("circuit").value;
+    try {
+      show("circuit-out", circuit_describe(name) + "\n\n— R1CS shape —\n" + circuit_r1cs_shape(name));
+    } catch (e) {
+      show("circuit-out", "error: " + e);
+    }
+  };
+
+  $("fuse").onclick = () => {
+    try {
+      show("fuse-out", fuse_demo(num("am"), num("av"), num("bm"), num("bv")));
+    } catch (e) {
+      show("fuse-out", "error: " + e);
+    }
+  };
+
+  $("run-exp").onclick = () => {
+    try {
+      show("exp-out", exp_demo(num("em"), num("ev"), Math.max(1000, num("en") | 0)));
+    } catch (e) {
+      show("exp-out", "error: " + e);
+    }
+  };
+</script>
+</body>
+</html>

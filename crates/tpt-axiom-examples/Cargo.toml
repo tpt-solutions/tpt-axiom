@@ -31,3 +31,12 @@ tpt-axiom-macros = { workspace = true }
 tpt-axiom-zk = { workspace = true, features = ["serde", "conformance"] }
 serde_json = "1"
 halo2_proofs = { workspace = true }
+ark-bls12-381 = { workspace = true }
+ark-ec = { workspace = true }
+ark-ff = { workspace = true }
+ark-groth16 = { workspace = true }
+ark-snark = { workspace = true }
+
+# dev-dependencies for the on-chain pairing cross-check
+[dev-dependencies]
+ark-relations = { workspace = true }

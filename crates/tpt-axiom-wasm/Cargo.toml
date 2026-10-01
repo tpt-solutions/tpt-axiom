@@ -1,0 +1,23 @@
+[package]
+name = "tpt-axiom-wasm"
+description = "WASM bindings for the tpt-axiom playground (circuit inspector + uncertainty demos)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+tpt-axiom = { workspace = true }
+tpt-axiom-core = { workspace = true }
+tpt-axiom-ir = { workspace = true }
+tpt-axiom-zk = { workspace = true }
+wasm-bindgen = "0.2"
+
+# The playground lives behind a feature in CI; wasm builds are exercised by
+# `wasm-pack build` (see the book / playground README).

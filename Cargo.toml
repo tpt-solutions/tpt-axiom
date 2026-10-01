@@ -27,6 +27,7 @@ members = [
     "crates/tpt-axiom-cli",
     "crates/tpt-axiom",
     "crates/tpt-axiom-examples",
+    "crates/tpt-axiom-wasm",
 ]
 
 [workspace.package]

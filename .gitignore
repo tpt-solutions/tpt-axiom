@@ -3,3 +3,9 @@ Cargo.lock
 .mimocode
 .kilo/
 .mimocode/
+contracts/out
+contracts/cache
+contracts/lib
+contracts/forge_create.json
+contracts/debug_call.json
+contracts/verifier_addr.txt

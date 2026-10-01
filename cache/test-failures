@@ -1,0 +1,1 @@
+{"version":1,"failures":[{"contract":"contracts/test/Groth16Verifier.t.sol:Groth16VerifierProofTest","test":"test_honest_proof_verifies"}]}

@@ -173,6 +173,19 @@ jobs:
           mdbook-version: latest
       - run: mdbook build docs/book
 
+  onchain:
+    name: on-chain verifier (foundry)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: foundry-rs/foundry-toolchain@v1
+      # Regenerate the verifier + proof from a fresh arkworks run, then
+      # verify on anvil through the EIP-2537 precompiles.
+      - run: cargo run -p tpt-axiom-examples --example onchain_export
+      - run: cd contracts && forge test -vv
+
   coverage:
     name: coverage
     runs-on: ubuntu-latest

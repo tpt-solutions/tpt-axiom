@@ -61,6 +61,14 @@ pub use tpt_axiom_zk::witness::WitnessError;
 pub use tpt_axiom_ir;
 pub use tpt_axiom_zk;
 
+// Re-exported so the on-chain (EIP-2537) export tooling can reach the
+// curve types behind `Proof`/`VerifyingKey` without adding ark deps.
+pub use ark_bls12_381;
+pub use ark_ec;
+pub use ark_ff;
+pub use ark_groth16;
+pub use ark_serialize;
+
 /// The arkworks [`tpt_axiom_zk::ZkBackend`] implementation.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ArkworksBackend;
