@@ -69,7 +69,7 @@ proc-macro2 = "1"
 
 # Phase 4 backend stacks.
 halo2_proofs = { version = "0.3", default-features = false }
-pasta_curves = { version = "0.5", features = ["alloc"] }
+pasta_curves = { version = "0.6", features = ["alloc"] }
 ff = "0.13"
 group = "0.13"
 rand = "0.8"
