@@ -32,6 +32,25 @@ COMMANDS:
 cargo install --path crates/tpt-axiom-cli
 ```
 
+## Proving backends are feature-gated
+
+This crate has **no default features**, so a plain build has no proving backend
+and `prove`/`keygen` return a usage error telling you to rebuild with
+`--features halo2`. `cargo axiom doctor` lists what the current build has.
+
+| Feature     | Enables                                     |
+| ----------- | ------------------------------------------- |
+| `halo2`     | `tpt-axiom-backend-halo2` (IPA/Vesta)       |
+| `arkworks`  | `tpt-axiom-backend-arkworks` (Groth16)      |
+| `full`      | both of the above                           |
+
+The end-to-end `prove`/`keygen` tests in `tests/cli.rs` are gated on
+`#[cfg(feature = "halo2")]`, so to run them:
+
+```sh
+cargo test -p tpt-axiom-cli --features halo2
+```
+
 ## License
 
 Dual-licensed under [MIT](../../LICENSE-MIT) or [Apache-2.0](../../LICENSE-APACHE), at your option.

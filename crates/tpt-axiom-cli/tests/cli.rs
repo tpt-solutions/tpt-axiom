@@ -74,6 +74,13 @@ fn a_misspelled_flag_is_a_usage_error_not_a_panic() {
     assert_eq!(run(&["--version"]), Outcome::Success);
 }
 
+// From here down, every test drives `keygen`/`prove`, which need a compiled-in
+// proving backend. `tpt-axiom-cli` ships with `default = []` on purpose, so a
+// verifier-only build has no backend and these cannot run: without this gate a
+// plain `cargo test -p tpt-axiom-cli` would fail rather than skip. CI builds
+// with `--all-features`, which keeps them live there.
+
+#[cfg(feature = "halo2")]
 #[test]
 fn an_out_of_range_range_bits_is_refused() {
     match run(&["keygen", "cli_transfer", "--range-bits", "0"]) {
@@ -84,6 +91,7 @@ fn an_out_of_range_range_bits_is_refused() {
     }
 }
 
+#[cfg(feature = "halo2")]
 #[test]
 fn keygen_reports_parameters_and_the_ir_digest() {
     assert_eq!(run(&["keygen", "cli_transfer"]), Outcome::Success);
@@ -96,12 +104,14 @@ fn keygen_reports_parameters_and_the_ir_digest() {
 }
 
 /// A scratch directory unique to this test run.
+#[cfg(feature = "halo2")]
 fn scratch(name: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("tpt_axiom_cli_{name}"));
     std::fs::create_dir_all(&dir).expect("scratch dir");
     dir
 }
 
+#[cfg(feature = "halo2")]
 #[test]
 fn prove_then_verify_round_trips_a_real_proof() {
     let dir = scratch("round_trip");
@@ -136,6 +146,7 @@ fn prove_then_verify_round_trips_a_real_proof() {
     );
 }
 
+#[cfg(feature = "halo2")]
 #[test]
 fn a_proof_does_not_verify_against_a_different_circuit() {
     // The proof is about `cli_transfer`; asking `cli_bounds` to verify it must
@@ -169,6 +180,7 @@ fn a_proof_does_not_verify_against_a_different_circuit() {
     );
 }
 
+#[cfg(feature = "halo2")]
 #[test]
 fn an_unsatisfiable_input_is_refused_before_proving() {
     let dir = scratch("unsatisfiable");
@@ -197,6 +209,7 @@ fn an_unsatisfiable_input_is_refused_before_proving() {
     );
 }
 
+#[cfg(feature = "halo2")]
 #[test]
 fn an_incomplete_input_names_the_missing_field() {
     let dir = scratch("incomplete");
@@ -215,6 +228,7 @@ fn an_incomplete_input_names_the_missing_field() {
     }
 }
 
+#[cfg(feature = "halo2")]
 #[test]
 fn a_missing_input_file_is_reported_with_its_path() {
     match run(&["prove", "cli_transfer", "--input", "no/such/file.json"]) {

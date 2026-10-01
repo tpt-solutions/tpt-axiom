@@ -1,50 +1,36 @@
 # Contributing to tpt-axiom
 
-Thanks for your interest in contributing! `tpt-axiom` is developed
-phase-by-phase against [todo.md](todo.md); please check there (and
-[docs/design/spec.md](docs/design/spec.md) / [ARCHITECTURE.md](ARCHITECTURE.md)) for the current
-phase and design before starting work, to avoid overlapping with in-progress
-efforts.
+Thanks for your interest in `tpt-axiom`! Contributions are **issues only**:
+pull requests are not accepted and will be closed without review.
 
-## Getting started
+## How to contribute
+
+Please [open an issue](https://github.com/tpt-solutions/tpt-axiom/issues) for:
+
+- **Bug reports**: include what you ran, what you expected, what happened,
+  and your Rust version and OS. A minimal reproduction helps a lot.
+- **Feature requests and ideas**: describe the use case, not just the
+  solution.
+- **Questions and documentation gaps**: if something was unclear, that is a
+  bug in the docs.
+
+Before filing, check [todo.md](todo.md), [ARCHITECTURE.md](ARCHITECTURE.md) and
+[docs/design/spec.md](docs/design/spec.md), and search existing issues to avoid
+duplicates.
+
+## Reproducing locally
 
 ```sh
 git clone https://github.com/tpt-solutions/tpt-axiom
 cd tpt-axiom
-cargo build --workspace
-cargo test --workspace
+cargo test --workspace --all-features
 ```
 
-## Development workflow
-
-- Format code with `cargo fmt --all` before committing.
-- Lint with `cargo clippy --workspace --all-targets -- -D warnings`.
-- Run the full test suite with `cargo test --workspace`.
-- All three checks run in CI (see `.github/workflows/ci.yml`) and must pass
-  before a pull request can be merged.
-- `unsafe_code` is forbidden workspace-wide (`#![forbid(unsafe_code)]`); new
-  crates should keep this lint.
-- Public items should be documented (`#![warn(missing_docs)]`); prefer
-  documenting the *why* (invariants, formulas, non-obvious behavior) over
-  restating the signature.
-
-## Commit / PR guidelines
-
-- Keep commits focused; prefer several small commits over one large one when
-  a change has logically separate parts.
-- Reference the relevant `todo.md` phase/item in your PR description.
-- Add or update tests for any behavioral change. New probabilistic operations
-  should include both closed-form unit tests and, where feasible, a Monte
-  Carlo cross-check (see `tpt-axiom-core`'s test suite for examples).
-- Update `CHANGELOG.md` under `[Unreleased]`.
+`--all-features` matters: proving backends are feature-gated, so a
+default-feature build compiles out the end-to-end `prove`/`keygen` tests
+instead of running them.
 
 ## Code of conduct
 
 Be respectful and constructive. Assume good faith, focus feedback on the
 code and the design, and keep discussion technical.
-
-## License
-
-By contributing, you agree that your contributions will be dual-licensed
-under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at the user's
-option, matching the rest of the project.
