@@ -1,4 +1,4 @@
-//! Alternative propagation modes for [`Fuzzy`](crate::Fuzzy): Monte Carlo
+//! Alternative propagation modes for the `Fuzzy` type: Monte Carlo
 //! sampling and the unscented transform.
 //!
 //! The `Fuzzy` operators use first-order (delta-method) propagation, which
@@ -31,13 +31,13 @@ fn standard_draw(uniform: f64) -> f64 {
 }
 
 /// Monte Carlo propagation of `f` through two independent Gaussian
-/// estimates: draws `samples` `(x, y)` pairs, applies `f`, and returns the
-/// sample mean and variance (Welford).
+/// estimates.
 ///
-/// `rng` is a uniform `(0, 1)` generator; two draws are consumed per
-/// sample. With a fixed seed the result is reproducible; across seeds it
-/// scatters at the usual `1/√samples` rate — treat the variance as having
-/// ~`2/samples` relative noise.
+/// Draws `samples` `(x, y)` pairs, applies `f`, and returns the sample
+/// mean and variance (Welford). `rng` is a uniform `(0, 1)` generator; two
+/// draws are consumed per sample. With a fixed seed the result is
+/// reproducible; across seeds it scatters at the usual `1/√samples` rate —
+/// treat the variance as having ~`2/samples` relative noise.
 #[must_use]
 pub fn monte_carlo<T>(
     a: &Fuzzy<T>,
@@ -51,7 +51,6 @@ where
 {
     let (ma, sa) = (a.mean().to_f64().unwrap_or(0.0), a.standard_deviation().to_f64().unwrap_or(0.0));
     let (mb, sb) = (b.mean().to_f64().unwrap_or(0.0), b.standard_deviation().to_f64().unwrap_or(0.0));
-    let two = T::one() + T::one();
     let mut count = 0_usize;
     let mut mean = T::zero();
     let mut m2 = T::zero();
@@ -61,7 +60,10 @@ where
         let out = f(x, y);
         count += 1;
         let delta = out - mean;
-        mean = mean + delta / T::from(count).unwrap_or_else(T::zero);
+        // Loop counters stay far below 2^53 in any realistic run.
+        #[allow(clippy::cast_precision_loss)]
+        let n = count as f64;
+        mean = mean + delta / T::from_f64(n).unwrap_or_else(T::zero);
         m2 = m2 + delta * (out - mean);
     }
     if count < 2 {
@@ -73,9 +75,11 @@ where
 }
 
 /// Unscented-transform propagation of `f` through two independent Gaussian
-/// estimates: `2n + 1 = 5` sigma points at the mean and `±√(n+λ)σ` along
-/// each axis, standard weights `w₀ = λ/(n+λ) = 1/3`, `wᵢ = 1/(2(n+λ)) =
-/// 1/6` (λ = 1 for `n = 2`), then the exact weighted moments of the five
+/// estimates.
+///
+/// `2n + 1 = 5` sigma points at the mean and `±√(n+λ)σ` along each axis,
+/// standard weights `w₀ = λ/(n+λ) = 1/3`, `wᵢ = 1/(2(n+λ)) = 1/6`
+/// (λ = 1 for `n = 2`), then the exact weighted moments of the five
 /// outputs.
 ///
 /// Deterministic (no RNG), five evaluations of `f`, and second-order
@@ -127,6 +131,7 @@ mod tests {
     use crate::Fuzzy;
 
     /// Deterministic uniform generator (xorshift), seeded per test.
+    #[allow(clippy::cast_precision_loss)] // xorshift output, 53 usable bits
     fn rng(seed: u64) -> impl FnMut() -> f64 {
         let mut state = seed.max(1);
         move || {
