@@ -1,0 +1,11 @@
+[package]
+name = "{{project-name}}"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+tpt-axiom = { version = "0.1", features = ["halo2"] }
+
+[dev-dependencies]
+tpt-axiom-backend-halo2 = { version = "0.1" }

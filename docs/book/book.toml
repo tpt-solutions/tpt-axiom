@@ -1,0 +1,14 @@
+[book]
+title = "tpt-axiom"
+authors = ["TPT Solutions"]
+description = "Probabilistic logic and native zero-knowledge state for Rust"
+src = "src"
+language = "en"
+
+[build]
+build-dir = "html"
+create-missing = false
+
+[output.html]
+git-repository-url = "https://github.com/tpt-solutions/tpt-axiom"
+edit-url-template = "https://github.com/tpt-solutions/tpt-axiom/edit/master/docs/book/{path}"

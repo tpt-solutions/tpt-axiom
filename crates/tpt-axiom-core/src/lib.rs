@@ -36,6 +36,7 @@ mod families;
 mod fuzzy;
 mod intelligence;
 pub mod logits;
+pub mod propagate;
 mod quants;
 pub mod special;
 
@@ -64,3 +65,6 @@ pub mod stats {
 /// Logit-space primitives (`softmax`, `cross_entropy`, `top_k`) — also
 /// re-exported at the crate root.
 pub use crate::logits::{cross_entropy, log_softmax, softmax, top_k};
+/// Alternative propagation modes for `Fuzzy` (Monte Carlo, unscented
+/// transform) — re-exported at the crate root.
+pub use crate::propagate::{monte_carlo, unscented};

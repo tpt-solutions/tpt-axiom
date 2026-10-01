@@ -1,0 +1,15 @@
+[package]
+name = "tpt-axiom-template"
+description = "A `cargo generate` template for projects using tpt-axiom (probabilistic arithmetic + zero-knowledge circuits)"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+authors = ["TPT Solutions"]
+repository = "https://github.com/tpt-solutions/tpt-axiom"
+readme = "README.md"
+publish = false
+
+# Deliberately NOT a workspace member: this crate is a `cargo generate`
+# template (its only child is the {{project-name}} placeholder directory),
+# so it must stand alone.

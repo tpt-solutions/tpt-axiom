@@ -1,0 +1,25 @@
+# Honest limits
+
+Read this page before relying on anything above.
+
+1. **Not audited.** The implementations are new; an external audit is a
+   prerequisite for production use.
+2. **Groth16 trusted setup.** The arkworks backend's per-circuit setup has
+   no ceremony support. Development-grade only.
+3. **Verifier-key provenance is your job.** This crate verifies against a
+   key it is *given*; binding keys to identities is the integrator's
+   responsibility.
+4. **Proof of statement, not of data.** Proofs attest that a statement
+   holds for the public inputs — nothing about where those inputs came
+   from. Provenance metadata is producer-claimed, not verified.
+5. **Independence assumptions.** `Fuzzy` arithmetic and the propagation
+   modes assume independent inputs; use `Correlated` when they are not.
+6. **First-order division.** The `a / b` variance rule is the delta-method
+   approximation, and division inside circuits requires unsigned operands.
+7. **Deterministic proving is not provided.** Proving uses the OS RNG; if
+   your protocol needs non-malleable proofs, handle it at the protocol
+   layer.
+8. **What is missing.** Poseidon/Merkle gadgets, disjunction (`!=`, `if`,
+   bounded loops — they need prover-supplied witness variables), WASM and
+   on-chain verifiers, and nonlinear correlated maps are all open; the
+   roadmap lives in the repository's `todo.md`.
