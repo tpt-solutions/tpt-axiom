@@ -1,0 +1,5 @@
+error: unknown `#[zk_provable]` option `registar`; supported options are `backend = "..."` and `register` (link-time circuit registry)
+ --> tests/ui/unknown_option.rs:6:34
+  |
+6 | #[zk_provable(backend = "halo2", registar)]
+  |                                  ^^^^^^^^

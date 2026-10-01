@@ -36,7 +36,15 @@ pub mod driver;
 pub mod layout;
 pub mod named;
 pub mod options;
+#[cfg(feature = "registry")]
+pub mod registry;
 pub mod witness;
+
+/// Re-exported so a `#[zk_provable(..., register)]` circuit needs no `linkme`
+/// dependency of its own — the generated code points `#[linkme(crate = ...)]`
+/// here.
+#[cfg(feature = "registry")]
+pub use linkme;
 
 pub use crate::backend::ZkBackend;
 pub use crate::circuit::CircuitDefinition;
@@ -45,3 +53,5 @@ pub use crate::driver::{ProveError, keygen, prove_ir_named, prove_named, verify_
 pub use crate::layout::{InputLayout, InputSlot};
 pub use crate::named::{NamedWitness, NamedWitnessError, WitnessValues};
 pub use crate::options::{KeygenOptions, KeygenOptionsError};
+#[cfg(feature = "registry")]
+pub use crate::registry::{REGISTERED_CIRCUITS, RegisteredCircuit};

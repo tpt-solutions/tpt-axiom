@@ -6,6 +6,12 @@
 //! constraint check, IR validation, and IR-digest binding all happening inside
 //! the driver rather than in the caller's hands.
 
+//!
+//! This is the whole Phase C usability path in one file: fill in a typed
+//! struct, call `named()`, prove, verify — with the witness resolution,
+//! constraint check, IR validation, and IR-digest binding all happening inside
+//! the driver rather than in the caller's hands.
+
 #![cfg(feature = "halo2")]
 
 use tpt_axiom_macros::zk_provable;

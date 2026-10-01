@@ -12,7 +12,7 @@ use syn::{
 };
 
 /// Lowers an annotated function into (original fn + circuit definition).
-pub fn lower_function(func: &ItemFn, backend: &str) -> syn::Result<TokenStream> {
+pub fn lower_function(func: &ItemFn, backend: &str, register: bool) -> syn::Result<TokenStream> {
     validate_signature(func)?;
 
     let name = func.sig.ident.to_string();
@@ -56,6 +56,11 @@ pub fn lower_function(func: &ItemFn, backend: &str) -> syn::Result<TokenStream> 
         &struct_name,
         &name,
     );
+    let register = if register {
+        generate_register(&name, backend, &struct_name, &zk_path)
+    } else {
+        TokenStream::new()
+    };
 
     let original = {
         let mut func = func.clone();
@@ -94,8 +99,48 @@ pub fn lower_function(func: &ItemFn, backend: &str) -> syn::Result<TokenStream> 
             }
         }
 
+        #register
+
         #inputs
     })
+}
+
+/// Generates the link-time registration for a circuit.
+///
+/// Emits a [`linkme`](https://docs.rs/linkme) distributed-slice constructor in
+/// a private module, so `tpt_axiom_zk::registry::sorted()` enumerates every
+/// circuit the linker kept. A circuit is only registered if something
+/// references it, so dead-code elimination still works: an unused circuit costs
+/// nothing and does not appear in `cargo axiom check`.
+///
+/// Emission is opt-in per function (`#[zk_provable(backend = "...", register)]`)
+/// because it requires the `registry` feature of `tpt-axiom-zk`; a feature the
+/// macro cannot detect in the *user's* crate. `linkme` is re-exported from
+/// `tpt-axiom-zk`, so a `register` function needs no extra dependency of its
+/// own.
+fn generate_register(
+    name: &str,
+    backend: &str,
+    struct_name: &Ident,
+    zk_path: &TokenStream,
+) -> TokenStream {
+    let module = Ident::new(&format!("__axiom_register_{name}"), struct_name.span());
+    quote! {
+        #[doc(hidden)]
+        mod #module {
+            #[#zk_path::linkme::distributed_slice(#zk_path::REGISTERED_CIRCUITS)]
+            #[linkme(crate = #zk_path::linkme)]
+            static __AXIOM_CIRCUIT: #zk_path::RegisteredCircuit = #zk_path::RegisteredCircuit {
+                name: #name,
+                backend: #backend,
+                build: || {
+                    <super::#struct_name as #zk_path::CircuitDefinition>::build(
+                        &super::#struct_name,
+                    )
+                },
+            };
+        }
+    }
 }
 
 /// Generates the typed `Inputs` struct and its methods for an annotated

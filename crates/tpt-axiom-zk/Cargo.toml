@@ -24,11 +24,19 @@ conformance = []
 # Derives the wire format on `ProofEnvelope` (the serializable port of a
 # `ProofClaim`).
 serde = ["dep:serde"]
+# Link-time circuit registry: every `#[zk_provable]` function registers itself,
+# so a binary can enumerate all its circuits (what `cargo axiom check` walks).
+# Requires `std` (the distributed slice is linked, not thread-local).
+registry = ["dep:linkme"]
 
 [dependencies]
+linkme = { version = "0.3", optional = true }
 serde = { version = "1", default-features = false, features = ["alloc", "derive"], optional = true }
 sha2 = { workspace = true }
 tpt-axiom-ir = { workspace = true }
+
+[dev-dependencies]
+tpt-axiom-macros = { workspace = true }
 
 # docs.rs builds with every feature so all doc examples render.
 [package.metadata.docs.rs]

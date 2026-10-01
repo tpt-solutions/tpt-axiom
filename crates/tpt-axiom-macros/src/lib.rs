@@ -67,6 +67,7 @@
 //! trait objects, closures — produces a compile-time error.
 
 use proc_macro::TokenStream;
+use proc_macro2::Span;
 use syn::parse::{Parse, ParseStream};
 use syn::{Ident, LitStr, Token};
 
@@ -83,54 +84,81 @@ pub fn zk_provable(attr: TokenStream, item: TokenStream) -> TokenStream {
         Ok(func) => func,
         Err(err) => return err.to_compile_error().into(),
     };
-    match lower::lower_function(&func, &args.backend) {
+    match lower::lower_function(&func, &args.backend, args.register) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }
 }
 
-/// Parses `backend = "halo2"` configuration.
+/// Parses `#[zk_provable(backend = "...", register)]` configuration.
 struct ZkProvableArgs {
     backend: String,
+    /// Whether to emit the link-time circuit registration.
+    register: bool,
 }
 
 impl Parse for ZkProvableArgs {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
-        let key: Ident = input.parse()?;
-        if key != "backend" {
+        let mut backend: Option<String> = None;
+        let mut register = false;
+        while !input.is_empty() {
+            let key: Ident = input.parse()?;
+            match key.to_string().as_str() {
+                "backend" => {
+                    input.parse::<Token![=]>()?;
+                    let value: LitStr = input.parse()?;
+                    backend = Some(validate_backend(&value)?);
+                }
+                "register" => register = true,
+                other => {
+                    return Err(syn::Error::new(
+                        key.span(),
+                        format!(
+                            "unknown `#[zk_provable]` option `{other}`; supported options are \
+                             `backend = \"...\"` and `register` (link-time circuit registry)"
+                        ),
+                    ));
+                }
+            }
+            if input.is_empty() {
+                break;
+            }
+            input.parse::<Token![,]>()?;
+        }
+        let Some(backend) = backend else {
             return Err(syn::Error::new(
-                key.span(),
-                "zk_provable only supports `backend = \"...\"`",
+                Span::call_site(),
+                "#[zk_provable] requires `backend = \"...\"` (e.g. `backend = \"halo2\"`)",
             ));
-        }
-        input.parse::<Token![=]>()?;
-        let value: LitStr = input.parse()?;
-        if !input.is_empty() {
-            return Err(input.error("unexpected tokens after backend argument"));
-        }
-        let backend = value.value();
-        if backend.is_empty() {
+        };
+        Ok(Self { backend, register })
+    }
+}
+
+/// Validates the backend selector, suggesting the fix for a near miss.
+fn validate_backend(value: &LitStr) -> syn::Result<String> {
+    let backend = value.value();
+    if backend.is_empty() {
+        return Err(syn::Error::new(
+            value.span(),
+            "`backend` must not be empty (e.g. `backend = \"halo2\"`)",
+        ));
+    }
+    // Third-party backends are allowed (the string only feeds the
+    // `CircuitDefinition::backend` selector), but a near-miss of a known
+    // backend is almost certainly a typo — say so, with the fix.
+    let known = ["halo2", "arkworks", "sp1"];
+    if !known.contains(&backend.as_str()) {
+        if let Some(candidate) = known.iter().find(|k| levenshtein(k, &backend) <= 2) {
             return Err(syn::Error::new(
                 value.span(),
-                "`backend` must not be empty (e.g. `backend = \"halo2\"`)",
+                format!(
+                    "unknown backend `{backend}`; did you mean `{candidate}`? (custom backends are allowed — use `#[allow]`-free exact names and register an adapter implementing `ZkBackend`)"
+                ),
             ));
         }
-        // Third-party backends are allowed (the string only feeds the
-        // `CircuitDefinition::backend` selector), but a near-miss of a known
-        // backend is almost certainly a typo — say so, with the fix.
-        let known = ["halo2", "arkworks", "sp1"];
-        if !known.contains(&backend.as_str()) {
-            if let Some(candidate) = known.iter().find(|k| levenshtein(k, &backend) <= 2) {
-                return Err(syn::Error::new(
-                    value.span(),
-                    format!(
-                        "unknown backend `{backend}`; did you mean `{candidate}`? (custom backends are allowed — use `#[allow]`-free exact names and register an adapter implementing `ZkBackend`)"
-                    ),
-                ));
-            }
-        }
-        Ok(Self { backend })
     }
+    Ok(backend)
 }
 
 /// Plain Levenshtein distance, for the backend-typo suggestion.

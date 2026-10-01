@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tpt_axiom_zk::options::KeygenOptions`: typed key-generation parameters with
   validated ranges, exposed as `ZkBackend::generate_keys_with_options` (the
   existing byte encoding is unchanged).
+- `tpt_axiom_zk::registry` (behind the `registry` feature): a `linkme`-backed
+  link-time circuit registry. `#[zk_provable(backend = "...", register)]`
+  registers the circuit so a binary can enumerate it — what lets a
+  `cargo axiom check` pass walk every circuit without a hand-maintained list.
+  Registry entries rebuild their IR on demand, so they cannot go stale.
 - `tpt_axiom_zk::driver`: `keygen`, `prove_named`, `prove_ir_named`, and
   `verify_claim` — one checked path from a typed input struct to a verified
   proof, with IR validation, witness resolution, and the constraint check
