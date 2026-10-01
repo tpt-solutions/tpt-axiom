@@ -776,7 +776,10 @@ mod tests {
             );
         }
         // A strict-majority threshold is the minimum viable policy.
-        assert!(coin.decide(Confidence::new_or_panic(0.5 + f64::EPSILON)).is_ok());
+        assert!(
+            coin.decide(Confidence::new_or_panic(0.5 + f64::EPSILON))
+                .is_ok()
+        );
     }
 
     #[test]

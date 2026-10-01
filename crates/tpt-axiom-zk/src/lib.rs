@@ -32,4 +32,4 @@ pub mod witness;
 
 pub use crate::backend::ZkBackend;
 pub use crate::circuit::CircuitDefinition;
-pub use crate::claim::{ProofClaim, ir_digest};
+pub use crate::claim::{ENVELOPE_VERSION, ProofClaim, ProofEnvelope, ir_digest};

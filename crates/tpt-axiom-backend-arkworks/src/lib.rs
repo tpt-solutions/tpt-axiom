@@ -48,16 +48,14 @@
 
 use ark_bls12_381::Bls12_381;
 use ark_groth16::{Groth16, Proof, ProvingKey, VerifyingKey};
-use ark_serialize::CanonicalSerialize;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_snark::SNARK;
 use ark_std::rand::rngs::OsRng;
 use core::fmt;
 
 pub mod circuit;
 
-pub use crate::circuit::{
-    ArkworksCircuit, ArkworksParams, encode_i128, encode_scalar, encode_u64,
-};
+pub use crate::circuit::{ArkworksCircuit, ArkworksParams, encode_i128, encode_scalar, encode_u64};
 pub use tpt_axiom_zk::witness::WitnessError;
 
 pub use tpt_axiom_ir;
@@ -118,7 +116,7 @@ impl From<ark_relations::r1cs::SynthesisError> for ArkworksError {
 }
 
 /// A Groth16 proof over BLS12-381.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ArkworksProof(pub Proof<Bls12_381>);
 
 impl tpt_axiom_zk::ZkBackend for ArkworksBackend {
@@ -180,6 +178,15 @@ impl tpt_axiom_zk::ZkBackend for ArkworksBackend {
         let inputs: Vec<_> = public.iter().map(|&v| encode_scalar(v)).collect();
         Groth16::<Bls12_381>::verify(vk, &inputs, &proof.0).map_err(ArkworksError::from)
     }
+
+    fn encode_proof(&self, proof: &Self::Proof) -> Option<Vec<u8>> {
+        to_bytes(&proof.0).ok()
+    }
+
+    fn decode_proof(&self, bytes: &[u8]) -> Option<Self::Proof> {
+        let raw = Proof::<Bls12_381>::deserialize_compressed(bytes).ok()?;
+        Some(ArkworksProof(raw))
+    }
 }
 
 /// Canonical serialization helper: proving keys, verifying keys and proofs
@@ -194,4 +201,24 @@ pub fn to_bytes<T: CanonicalSerialize>(
     let mut out = Vec::with_capacity(value.compressed_size());
     value.serialize_compressed(&mut out)?;
     Ok(out)
+}
+
+/// The inverse of [`to_bytes`]: rebuilds any canonical-serializable key
+/// material or proof from shipped bytes.
+///
+/// # Errors
+/// Propagates [`ark_serialize::SerializationError`] when the bytes are not a
+/// valid compressed encoding of `T`.
+pub fn from_bytes<T: CanonicalDeserialize>(
+    bytes: &[u8],
+) -> Result<T, ark_serialize::SerializationError> {
+    let mut cursor = bytes;
+    let value = T::deserialize_compressed(&mut cursor)?;
+    if !cursor.is_empty() {
+        // Trailing bytes mean the file was truncated or two artifacts were
+        // concatenated; accepting it would verify against a prefix of the
+        // intended material.
+        return Err(ark_serialize::SerializationError::InvalidData);
+    }
+    Ok(value)
 }

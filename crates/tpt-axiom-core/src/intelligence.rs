@@ -399,9 +399,7 @@ pub enum CategoricalError {
 impl fmt::Display for CategoricalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Empty => {
-                f.write_str("a categorical distribution needs at least one outcome")
-            }
+            Self::Empty => f.write_str("a categorical distribution needs at least one outcome"),
             Self::InvalidWeight(w) => {
                 write!(f, "outcome weight must be finite and positive, got {w}")
             }
@@ -549,6 +547,29 @@ impl<T: PartialEq> Categorical<T> {
             .map(|(o, p)| ((*o).clone(), p.value() * likelihood(o)))
             .collect();
         Self::new(revised)
+    }
+
+    /// The Kullback–Leibler divergence `D(self ‖ other)` in nats:
+    /// `Σ p·ln(p/q)`.
+    ///
+    /// Returns `None` when `self` is not absolutely continuous with respect
+    /// to `other` — some outcome has positive chance here but zero chance
+    /// there — in which case the divergence is infinite and no finite
+    /// number is honest.
+    #[must_use]
+    pub fn kl_divergence(&self, other: &Self) -> Option<f64> {
+        let mut total = 0.0;
+        for (outcome, p) in &self.outcomes {
+            let q = other.probability_of(outcome).value();
+            if q <= 0.0 {
+                return None;
+            }
+            let pv = p.value();
+            if pv > 0.0 {
+                total += pv * (pv / q).ln();
+            }
+        }
+        Some(total)
     }
 
     /// Draws one outcome with the supplied uniform `(0, 1)` generator.
@@ -1107,10 +1128,7 @@ mod tests {
         let dist = Categorical::new([("red", 2.0), ("green", 1.0), ("blue", 1.0)]).unwrap();
         assert_eq!(dist.probability_of(&"red").value(), 0.5);
         assert_eq!(dist.probability_of(&"purple"), Probability::ZERO);
-        assert_eq!(
-            dist.most_likely(),
-            (&"red", Probability::new_or_panic(0.5))
-        );
+        assert_eq!(dist.most_likely(), (&"red", Probability::new_or_panic(0.5)));
         // Entropy of (0.5, 0.25, 0.25) is 1.5 bits.
         assert!((dist.entropy_bits() - 1.5).abs() < 1e-9);
         // Duplicate outcomes accumulate; non-positive / NaN weights are dropped.
@@ -1168,7 +1186,8 @@ mod tests {
         // space: e^700 · e^700 has no f64 representation, but its log is
         // 1400.
         let big = Evidence::from_log_weight("x", 700.0, Provenance::local()).unwrap();
-        let fused = big.combine(Evidence::from_log_weight("x", 700.0, Provenance::local()).unwrap());
+        let fused =
+            big.combine(Evidence::from_log_weight("x", 700.0, Provenance::local()).unwrap());
         assert_eq!(fused.log_weight(), 1400.0);
         assert!(fused.weight().is_infinite(), "linear read-back overflows");
         let _ = huge;

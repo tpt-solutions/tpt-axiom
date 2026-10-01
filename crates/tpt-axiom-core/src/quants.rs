@@ -82,6 +82,8 @@ fn erf_series(x: f64) -> f64 {
 /// `erfc(x) = exp(-x²)/√π · 1/(x + (1/2)/(x + (2/2)/(x + …)))`, evaluated
 /// with the modified Lentz algorithm.
 fn erfc_continued_fraction(x: f64) -> f64 {
+    // `f`/`c`/`d` are the standard A&S Lentz variables.
+    #![allow(clippy::many_single_char_names)]
     const TINY: f64 = 1e-300;
     let mut f = x.max(TINY);
     // Modified Lentz: C starts at b0 (not infinity — that would make the
@@ -270,7 +272,10 @@ mod tests {
         // The far tail keeps *relative* accuracy (the old A&S-based cdf
         // collapsed to 0 or 1 here).
         let tail = norm_cdf(-8.0);
-        assert!((tail / 6.220_960_574_271_78e-16 - 1.0).abs() < 1e-12, "{tail}");
+        assert!(
+            (tail / 6.220_960_574_271_78e-16 - 1.0).abs() < 1e-12,
+            "{tail}"
+        );
     }
 
     #[test]
@@ -296,7 +301,10 @@ mod tests {
             let z = norm_ppf(p);
             let back = norm_cdf(z);
             let relative = ((back - p) / p).abs();
-            assert!(relative < 1e-10, "far tail failed for {p}: z={z}, back={back}");
+            assert!(
+                relative < 1e-10,
+                "far tail failed for {p}: z={z}, back={back}"
+            );
         }
         // 1 - 1e-20 rounds to 1.0 in f64, so the smallest representable
         // upper tail is one epsilon below one.

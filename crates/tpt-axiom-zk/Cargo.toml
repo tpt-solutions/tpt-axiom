@@ -21,8 +21,12 @@ default = []
 # Exposes `tpt_axiom_zk::conformance`: generic prove/verify drivers shared by
 # every backend adapter's test suite.
 conformance = []
+# Derives the wire format on `ProofEnvelope` (the serializable port of a
+# `ProofClaim`).
+serde = ["dep:serde"]
 
 [dependencies]
+serde = { version = "1", default-features = false, features = ["alloc", "derive"], optional = true }
 sha2 = { workspace = true }
 tpt-axiom-ir = { workspace = true }
 

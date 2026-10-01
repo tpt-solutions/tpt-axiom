@@ -2,23 +2,23 @@
 //! is what a newcomer reads in the repository, and every runnable snippet in
 //! it is a doctest that fails CI if it drifts from the API.
 #![doc = include_str!("../../../README.md")]
-
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-
-pub use tpt_axiom_core;
-pub use tpt_axiom_ir;
-pub use tpt_axiom_macros;
-pub use tpt_axiom_zk;
-#[cfg(feature = "verify")]
-pub use tpt_axiom_verify;
-#[cfg(feature = "interop")]
-pub use tpt_axiom_interop;
-#[cfg(feature = "halo2")]
-pub use tpt_axiom_backend_halo2;
 #[cfg(feature = "arkworks")]
 pub use tpt_axiom_backend_arkworks;
+#[cfg(feature = "halo2")]
+pub use tpt_axiom_backend_halo2;
+pub use tpt_axiom_core;
+#[cfg(feature = "interop")]
+pub use tpt_axiom_interop;
+pub use tpt_axiom_ir;
+pub use tpt_axiom_macros;
+#[cfg(feature = "verify")]
+pub use tpt_axiom_verify;
+pub use tpt_axiom_zk;
+
+pub mod audit;
 
 /// The `tpt-axiom` prelude, matching the spec's `use tpt_axiom::prelude::*;`.
 pub mod prelude {
@@ -34,8 +34,10 @@ pub mod prelude {
 
     // Opt-in groups (see the crate features): one glob import picks up
     // everything that is compiled in.
-    #[cfg(feature = "verify")]
-    pub use tpt_axiom_verify::{Comparison, Mismatch, check_comparison, evaluate, normalize_all};
+    #[cfg(feature = "arkworks")]
+    pub use tpt_axiom_backend_arkworks::{ArkworksBackend, ArkworksCircuit};
+    #[cfg(feature = "halo2")]
+    pub use tpt_axiom_backend_halo2::{Halo2Backend, Halo2Circuit};
     #[cfg(feature = "interop")]
     pub use tpt_axiom_interop::engine::{
         DecisionEngine, EngineError, EngineOutput, EngineVerdict, MultiLabelOutput,
@@ -43,8 +45,9 @@ pub mod prelude {
     };
     #[cfg(feature = "interop")]
     pub use tpt_axiom_interop::inference::InferenceSample;
-    #[cfg(feature = "halo2")]
-    pub use tpt_axiom_backend_halo2::{Halo2Backend, Halo2Circuit};
-    #[cfg(feature = "arkworks")]
-    pub use tpt_axiom_backend_arkworks::{ArkworksBackend, ArkworksCircuit};
+    #[cfg(feature = "verify")]
+    pub use tpt_axiom_verify::{Comparison, Mismatch, check_comparison, evaluate, normalize_all};
+
+    pub use crate::audit::ProofCarriedDecision;
+    pub use tpt_axiom_zk::{ProofClaim, ProofEnvelope, ir_digest};
 }

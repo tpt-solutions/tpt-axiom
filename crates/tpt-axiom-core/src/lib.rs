@@ -31,14 +31,21 @@ extern crate alloc;
 
 mod decision_types;
 mod distribution;
+mod families;
 mod fuzzy;
 mod intelligence;
+pub mod logits;
 mod quants;
+pub mod special;
 
 pub use crate::decision_types::{
     BinaryDecision, Calibration, DecisionRecord, Hypotheses, MultiLabelDecision, Ranking,
 };
 pub use crate::distribution::{Distribution, InvalidVariance};
+pub use crate::families::{
+    Beta, Binomial, ContinuousDistribution, DiscreteDistribution, DomainError, Gamma, LogNormal,
+    Poisson, StudentT, Uniform, kl_gaussian,
+};
 pub use crate::fuzzy::{FuseError, Fuzzy};
 pub use crate::intelligence::{
     AbstentionReason, Bernoulli, Categorical, CategoricalError, Confidence, Decision,
@@ -51,3 +58,7 @@ pub use crate::intelligence::{
 pub mod stats {
     pub use crate::quants::{erf, erfc, norm_cdf, norm_ppf};
 }
+
+/// Logit-space primitives (`softmax`, `cross_entropy`, `top_k`) — also
+/// re-exported at the crate root.
+pub use crate::logits::{cross_entropy, log_softmax, softmax, top_k};

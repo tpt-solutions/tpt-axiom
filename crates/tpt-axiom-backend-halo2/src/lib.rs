@@ -46,7 +46,9 @@ use rand::rngs::OsRng;
 
 pub mod circuit;
 
-pub use crate::circuit::{Halo2Circuit, Halo2Params, auto_k, encode_i128, encode_scalar, encode_u64};
+pub use crate::circuit::{
+    Halo2Circuit, Halo2Params, auto_k, encode_i128, encode_scalar, encode_u64,
+};
 pub use tpt_axiom_zk::witness::WitnessError;
 
 pub use tpt_axiom_ir;
@@ -253,5 +255,14 @@ impl tpt_axiom_zk::ZkBackend for Halo2Backend {
             | halo2_proofs::plonk::Error::Transcript(_) => Ok(false),
             other => Err(Halo2Error::from(other)),
         })
+    }
+
+    fn encode_proof(&self, proof: &Self::Proof) -> Option<Vec<u8>> {
+        // The halo2 proof already *is* its Blake2b-transcript byte string.
+        Some(proof.0.clone())
+    }
+
+    fn decode_proof(&self, bytes: &[u8]) -> Option<Self::Proof> {
+        Some(Halo2Proof(bytes.to_vec()))
     }
 }

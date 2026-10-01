@@ -85,11 +85,7 @@ impl core::fmt::Display for WitnessError {
             Self::Violated { index } => {
                 write!(f, "witness violates the circuit's constraint #{index}")
             }
-            Self::InputOutOfRange {
-                name,
-                index,
-                value,
-            } => write!(
+            Self::InputOutOfRange { name, index, value } => write!(
                 f,
                 "input {name} (slot {index}) carries {value}, outside its declared integer type"
             ),
@@ -98,7 +94,10 @@ impl core::fmt::Display for WitnessError {
                 "constraint #{index} is provable only in [0, 2^{bits}) but its value is {value}"
             ),
             Self::Overflow { index } => {
-                write!(f, "expression #{index} overflows the IR's i128 evaluation model")
+                write!(
+                    f,
+                    "expression #{index} overflows the IR's i128 evaluation model"
+                )
             }
         }
     }
@@ -184,25 +183,22 @@ pub fn check_with_range(
         let satisfied = match *constraint {
             Constraint::Zero(e) => values.get(e).copied().flatten() == Some(0),
             Constraint::Equal(l, r) => {
-                values.get(l).copied().flatten().is_some()
-                    && values.get(l) == values.get(r)
+                values.get(l).copied().flatten().is_some() && values.get(l) == values.get(r)
             }
-            Constraint::NonNegative(e) => {
-                match values.get(e).copied().flatten() {
-                    Some(v) if v >= 0 => {
-                        let limit = 1i128 << range_bits;
-                        if v >= limit {
-                            return Err(WitnessError::NonNegativeOutOfRange {
-                                index,
-                                value: v,
-                                bits: range_bits,
-                            });
-                        }
-                        true
+            Constraint::NonNegative(e) => match values.get(e).copied().flatten() {
+                Some(v) if v >= 0 => {
+                    let limit = 1i128 << range_bits;
+                    if v >= limit {
+                        return Err(WitnessError::NonNegativeOutOfRange {
+                            index,
+                            value: v,
+                            bits: range_bits,
+                        });
                     }
-                    _ => false,
+                    true
                 }
-            }
+                _ => false,
+            },
         };
         if !satisfied {
             return Err(WitnessError::Violated { index });
@@ -232,7 +228,11 @@ pub fn evaluate_nodes(
             Expr::Add(l, r) => bin_op(&values, *l, *r, i128::checked_add),
             Expr::Sub(l, r) => bin_op(&values, *l, *r, i128::checked_sub),
             Expr::Mul(l, r) => bin_op(&values, *l, *r, i128::checked_mul),
-            Expr::Neg(n) => values.get(*n).copied().flatten().and_then(i128::checked_neg),
+            Expr::Neg(n) => values
+                .get(*n)
+                .copied()
+                .flatten()
+                .and_then(i128::checked_neg),
         };
         values.push(value);
     }
@@ -271,8 +271,7 @@ fn variable_value(
     secret: Option<&[i64]>,
 ) -> Option<i64> {
     let expr = ir.var_expr_id(var);
-    let public_index = expr
-        .and_then(|e| ir.public_inputs.iter().position(|&p| p == e));
+    let public_index = expr.and_then(|e| ir.public_inputs.iter().position(|&p| p == e));
     if let (Some(i), Some(public)) = (public_index, public) {
         return public.get(i).copied();
     }
@@ -296,7 +295,9 @@ fn binary(
     ) else {
         return Ok(None);
     };
-    op(l, r).map(Some).ok_or(WitnessError::Overflow { index: id })
+    op(l, r)
+        .map(Some)
+        .ok_or(WitnessError::Overflow { index: id })
 }
 
 fn bin_op(
@@ -402,6 +403,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::many_single_char_names)] // x/y/z/w/v stand in for inputs
     fn overflow_is_reported_precisely() {
         // x * y * z * w * v with i64::MAX operands overflows even i128.
         let mut b = ConstraintSystemBuilder::new("boom");

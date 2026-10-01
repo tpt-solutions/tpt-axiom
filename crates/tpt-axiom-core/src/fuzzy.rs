@@ -229,7 +229,11 @@ impl<T: Float> Fuzzy<T> {
         let m = self.mean;
         let root = m.sqrt();
         let four = T::one() + T::one() + T::one() + T::one();
-        self.transform(T::sqrt, T::one() / (root + root), -T::one() / (four * root * m))
+        self.transform(
+            T::sqrt,
+            T::one() / (root + root),
+            -T::one() / (four * root * m),
+        )
     }
 
     /// `x^n` for integer `n`: mean `m^n + n(n−1)m^{n−2}·v/2`, variance
@@ -254,6 +258,20 @@ impl<T: Float> Fuzzy<T> {
         self.transform(T::tanh, dt, -(t + t) * dt)
     }
 
+    /// N-way fusion: folds [`Self::fuse`] left to right over the estimates
+    /// (the minimum-variance combination is associative for pairwise
+    /// fusions, so fold order only affects rounding).
+    ///
+    /// An empty iterator is the identity: a certain value at the mean of
+    /// `self`. Degenerate inputs follow [`Self::fuse`]'s IEEE semantics.
+    #[must_use]
+    pub fn fuse_all<'a>(&self, others: impl IntoIterator<Item = &'a Self>) -> Self
+    where
+        T: 'a,
+    {
+        others.into_iter().fold(*self, |acc, e| acc.fuse(e))
+    }
+
     /// Like [`Self::fuse`], but rejects inputs that make the combination
     /// degenerate: both variances zero (nothing to fuse), a non-finite
     /// variance sum, or a non-finite result.
@@ -262,9 +280,7 @@ impl<T: Float> Fuzzy<T> {
     /// Returns `Err` with no payload when the fusion is degenerate.
     pub fn checked_fuse(&self, other: &Self) -> Result<Self, FuseError> {
         let v_sum = self.variance + other.variance;
-        if (self.variance.is_zero() && other.variance.is_zero())
-            || !v_sum.is_finite()
-        {
+        if (self.variance.is_zero() && other.variance.is_zero()) || !v_sum.is_finite() {
             return Err(FuseError);
         }
         let variance = self.variance * other.variance / v_sum;
@@ -283,9 +299,7 @@ pub struct FuseError;
 
 impl fmt::Display for FuseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(
-            "cannot fuse: both variances were zero or the combination was not finite",
-        )
+        f.write_str("cannot fuse: both variances were zero or the combination was not finite")
     }
 }
 
@@ -570,9 +584,7 @@ mod serde_impls {
             }
             let shadow = Shadow::<T>::deserialize(deserializer)?;
             if shadow.variance.is_nan() || shadow.variance < T::zero() {
-                Err(DeError::custom(
-                    "variance must be non-negative and finite",
-                ))
+                Err(DeError::custom("variance must be non-negative and finite"))
             } else {
                 Ok(Self {
                     mean: shadow.mean,
@@ -760,7 +772,10 @@ mod tests {
         let a = Fuzzy::new(1.0_f64, 1.0);
         let zero_mean = Fuzzy::new(0.0_f64, 1.0);
         let q = a / zero_mean;
-        assert!(!q.variance().is_finite(), "0/0 variance is IEEE, not a panic");
+        assert!(
+            !q.variance().is_finite(),
+            "0/0 variance is IEEE, not a panic"
+        );
 
         // The checked form names the rejected divisor.
         assert_eq!(a.checked_div(&zero_mean), Err(0.0));
@@ -795,6 +810,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::many_single_char_names)] // x/e/e2/s/t/r stand in for closed forms
     fn nonlinear_transforms_match_closed_forms() {
         let x = Fuzzy::new(2.0_f64, 0.25);
         // exp: second-order mean e^2 + e^2·v/2 = e^2(1 + 0.125); variance e^{2m}·v.

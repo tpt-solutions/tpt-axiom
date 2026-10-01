@@ -31,6 +31,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   RISC-V toolchain (Linux/macOS-only) are available.
 - Phase 4: criterion benchmark suites with matching scenario IDs across
   backends (circuit size, keygen, prove, verify for `prove_balance_transfer`).
+- Proof portability: `tpt_axiom_zk::ProofEnvelope`, a version-tagged wire
+  format carrying the backend, circuit, public inputs, the IR-digest binding
+  and the canonical proof bytes, with `ProofClaim::to_envelope`/`from_envelope`
+  round-tripping a claim through JSON without loosening its circuit binding.
+  Backends opt in via new `ZkBackend::encode_proof`/`decode_proof` hooks;
+  `arkworks::from_bytes` is the inverse of `to_bytes` for shipped key material
+  and rejects trailing bytes.
+- `tpt-axiom-core` distributions: `Uniform`, `Beta`, `Gamma`, `LogNormal`,
+  `StudentT`, `Poisson`, `Binomial` with `pdf`/`cdf`/`quantile`/
+  `prob_greater_than`, on new dependency-free special functions
+  (`lgamma`, `gamma_p`/`gamma_q`, `beta_reg`), plus conjugate updates and
+  `kl_gaussian`.
+- `tpt-axiom-core::logits` — temperature-scaled `softmax`/`log_softmax`,
+  `cross_entropy`, `top_k`.
+- Nonlinear `Fuzzy` transforms (`exp`, `ln`, `sqrt`, `powi`, `tanh`) via a
+  generic `Fuzzy::transform` engine with second-order mean correction, and
+  checked N-way fusion (`Fuzzy::fuse_all`).
+- `tpt-axiom::audit::ProofCarriedDecision` — a `DecisionRecord` bundled with
+  the proof that justifies it, re-verifiable by an auditor against their own
+  copy of the circuit definition.
+- `examples/age_proof.rs` (halo2) — prove you are 18+ without revealing your
+  age or birth year, including the adversarial underage witness; run in CI
+  with its documented expected output.
 - AI Foundation (Interoperability): new `tpt-axiom-interop` crate converting
   `tpt-augur`'s `Dist` family to Axiom uncertainty types (exact closed-form
   moment matching, validated, round-trippable for `Normal`) and defining the

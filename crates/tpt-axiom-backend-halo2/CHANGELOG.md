@@ -30,6 +30,13 @@ and this crate adheres to [Semantic Versioning](https://semver.org/).
 - End-to-end demo: `examples/balance_transfer_prove.rs` and a separate
   `examples/balance_transfer_verify.rs` binary that verifies the shipped
   proof without any proving code.
+- `examples/age_proof.rs`: the README-lead example — prove `age >= 18`
+  without revealing the birth year, including the adversarial underage
+  witness the prover must refuse. Documented expected output, run in CI.
+- `encode_proof`/`decode_proof` (the proof already *is* its Blake2b-transcript
+  byte string), so claims port through `tpt_axiom_zk::ProofEnvelope`; an
+  envelope-roundtrip test asserts the rebuilt claim still verifies against its
+  own circuit and is refused against a different one.
 
 ### Changed
 

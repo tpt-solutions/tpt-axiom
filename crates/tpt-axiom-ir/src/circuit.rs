@@ -287,7 +287,10 @@ impl core::fmt::Display for CircuitError {
                 write!(f, "variable {var}'s expression map entry is inconsistent")
             }
             Self::OutOfRangeOperand { expr, operand } => {
-                write!(f, "expression #{expr} references out-of-range node {operand}")
+                write!(
+                    f,
+                    "expression #{expr} references out-of-range node {operand}"
+                )
             }
             Self::ForwardReference { expr, operand } => write!(
                 f,
@@ -326,10 +329,7 @@ pub fn bit_bounds(ir: &ConstraintSystem) -> Vec<u32> {
     for expr in &ir.exprs {
         let bound = match *expr {
             Expr::Const(v) => const_magnitude_bits(v),
-            Expr::Var(var) => ir
-                .variables
-                .get(var)
-                .map_or(64, |info| info.int_type.bits),
+            Expr::Var(var) => ir.variables.get(var).map_or(64, |info| info.int_type.bits),
             Expr::Add(l, r) | Expr::Sub(l, r) => add_bounds(&bounds, l, r),
             Expr::Mul(l, r) => mul_bounds(&bounds, l, r),
             Expr::Neg(n) => bounds.get(n).copied().unwrap_or(0),
@@ -434,36 +434,42 @@ impl ConstraintSystem {
                 Expr::Add(l, r) | Expr::Sub(l, r) | Expr::Mul(l, r) => {
                     for operand in [l, r] {
                         if operand >= self.exprs.len() {
-                            return Err(CircuitError::OutOfRangeOperand {
-                                expr: id,
-                                operand,
-                            });
+                            return Err(CircuitError::OutOfRangeOperand { expr: id, operand });
                         }
                         if operand >= id {
-                            return Err(CircuitError::ForwardReference {
-                                expr: id,
-                                operand,
-                            });
+                            return Err(CircuitError::ForwardReference { expr: id, operand });
                         }
                     }
                 }
                 Expr::Neg(n) => {
                     if n >= self.exprs.len() {
-                        return Err(CircuitError::OutOfRangeOperand { expr: id, operand: n });
+                        return Err(CircuitError::OutOfRangeOperand {
+                            expr: id,
+                            operand: n,
+                        });
                     }
                     if n >= id {
-                        return Err(CircuitError::ForwardReference { expr: id, operand: n });
+                        return Err(CircuitError::ForwardReference {
+                            expr: id,
+                            operand: n,
+                        });
                     }
                 }
             }
         }
-        for (kind, slots) in [("public", &self.public_inputs), ("secret", &self.secret_inputs)] {
+        for (kind, slots) in [
+            ("public", &self.public_inputs),
+            ("secret", &self.secret_inputs),
+        ] {
             for (slot, &id) in slots.iter().enumerate() {
                 let Some(Expr::Var(var)) = self.exprs.get(id) else {
                     return Err(CircuitError::InputNotVariable { slot, kind });
                 };
                 let Some(info) = self.variables.get(*var) else {
-                    return Err(CircuitError::UnknownVariable { expr: id, var: *var });
+                    return Err(CircuitError::UnknownVariable {
+                        expr: id,
+                        var: *var,
+                    });
                 };
                 let expected = match kind {
                     "public" => Visibility::Public,
@@ -740,7 +746,10 @@ mod tests {
     fn int_type_bounds_are_exact() {
         assert_eq!(IntType::U8.bounds(), (0, 255));
         assert_eq!(IntType::I8.bounds(), (-128, 127));
-        assert_eq!(IntType::I64.bounds(), (i128::from(i64::MIN), i128::from(i64::MAX)));
+        assert_eq!(
+            IntType::I64.bounds(),
+            (i128::from(i64::MIN), i128::from(i64::MAX))
+        );
         assert_eq!(IntType::U64.bounds(), (0, i128::from(u64::MAX)));
     }
 
@@ -783,8 +792,13 @@ mod tests {
         );
         ir.exprs.push(Expr::Var(0));
         // Now node 1 exists but is *later* than its operand slot 1 → forward.
-        let err = ir.validate().expect_err("self reference is a forward reference");
-        assert!(matches!(err, CircuitError::ForwardReference { .. }), "{err}");
+        let err = ir
+            .validate()
+            .expect_err("self reference is a forward reference");
+        assert!(
+            matches!(err, CircuitError::ForwardReference { .. }),
+            "{err}"
+        );
     }
 
     #[test]
@@ -807,6 +821,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::many_single_char_names)] // x/y/w/z/v stand in for inputs
     fn deep_mul_chain_is_rejected_for_field_wraparound() {
         // (x * y) * w * z * v with 64-bit inputs: the static bound reaches
         // 5*64 = 320 bits, far past any proving field — a field image could

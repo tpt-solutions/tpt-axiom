@@ -162,10 +162,7 @@ fn wrapping_intermediate_is_rejected_at_prove_time() {
     let err = compiled(&b.build())
         .with_witness(vec![1i64 << 40], vec![1i64 << 30])
         .expect_err("2^70 exceeds the 64-bit range check");
-    assert!(matches!(
-        err,
-        WitnessError::NonNegativeOutOfRange { .. }
-    ));
+    assert!(matches!(err, WitnessError::NonNegativeOutOfRange { .. }));
 }
 
 #[test]
@@ -344,7 +341,9 @@ fn verify_with_wrong_public_count_is_a_clean_false() {
     let ir = ProveBalanceTransfer.build();
     let circuit = backend.compile(&ir).expect("compile");
     let (pk, vk) = backend.generate_keys(&ir, &[]).expect("keys");
-    let proof = backend.prove(&circuit, &pk, &[50, 20], &[30]).expect("prove");
+    let proof = backend
+        .prove(&circuit, &pk, &[50, 20], &[30])
+        .expect("prove");
     // One public too few and one too many are both false claims, not
     // backend errors.
     assert!(
@@ -352,9 +351,54 @@ fn verify_with_wrong_public_count_is_a_clean_false() {
         "one public too few must not verify"
     );
     assert!(
-        !backend.verify(&vk, &[50, 20, 7], &proof).expect("clean false"),
+        !backend
+            .verify(&vk, &[50, 20, 7], &proof)
+            .expect("clean false"),
         "one public too many must not verify"
     );
+}
+
+#[test]
+fn proof_envelope_roundtrips_and_stays_bound() {
+    use tpt_axiom_zk::{ProofClaim, ir_digest};
+
+    let backend = Halo2Backend;
+    let ir = ProveBalanceTransfer.build();
+    let circuit = backend.compile(&ir).expect("compile");
+    let (pk, vk) = backend.generate_keys(&ir, &[]).expect("keys");
+    let proof = backend
+        .prove(&circuit, &pk, &[50, 20], &[30])
+        .expect("prove");
+
+    let claim = ProofClaim::new("prove_balance_transfer", &ir, &[50, 20], proof);
+    // Envelope: the serializable port of the claim.
+    let envelope = claim.to_envelope(&backend).expect("halo2 proofs are bytes");
+    assert_eq!(envelope.version, tpt_axiom_zk::ENVELOPE_VERSION);
+    assert_eq!(envelope.backend, "halo2");
+    assert_eq!(envelope.binding, ir_digest(&ir));
+    // Rebuild through the (JSON) wire format and verify in the *decoded*
+    // claim — the digest binding survives.
+    let wire = serde_json::to_string(&envelope).expect("serialize");
+    let decoded: tpt_axiom_zk::ProofEnvelope = serde_json::from_str(&wire).expect("deserialize");
+    let rebuilt = ProofClaim::from_envelope(&backend, &decoded).expect("decode");
+    assert_eq!(rebuilt, claim);
+    assert!(
+        rebuilt.verify_with(&backend, &vk, &ir).expect("verify"),
+        "the envelope-portaled proof must still verify"
+    );
+    // A claim rebuilt against a DIFFERENT circuit is refused.
+    let mut other_ir = ProveBalanceTransfer.build();
+    other_ir.constraints.clear();
+    assert!(
+        !rebuilt
+            .verify_with(&backend, &vk, &other_ir)
+            .expect("clean false"),
+        "digest mismatch must refuse the claim"
+    );
+    // A foreign envelope (wrong backend name) decodes to nothing.
+    let mut foreign = decoded;
+    foreign.backend = String::from("arkworks");
+    assert!(ProofClaim::from_envelope(&backend, &foreign).is_none());
 }
 
 #[test]

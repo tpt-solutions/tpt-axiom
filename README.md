@@ -171,6 +171,7 @@ constraint index. Witness a full run in separate processes:
 ```sh
 cargo run -p tpt-axiom-backend-halo2 --example balance_transfer_prove  -- target/demo-proof
 cargo run -p tpt-axiom-backend-halo2 --example balance_transfer_verify -- target/demo-proof
+cargo run -p tpt-axiom-backend-halo2 --example age_proof              # prove age ≥ 18 without revealing it
 cargo run -p tpt-axiom-backend-halo2 --example backend_comparison      # both backends, side by side
 ```
 

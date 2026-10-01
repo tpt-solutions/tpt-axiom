@@ -74,7 +74,11 @@ fn require(cond: bool, dist: &'static str, reason: &str) -> Result<(), Conversio
 pub fn to_distribution(dist: Dist) -> Result<Distribution<f64>, ConversionError> {
     match dist {
         Dist::Normal { mu, sigma } => {
-            require(sigma.is_finite() && sigma >= 0.0, "Normal", "sigma must be >= 0")?;
+            require(
+                sigma.is_finite() && sigma >= 0.0,
+                "Normal",
+                "sigma must be >= 0",
+            )?;
             // A degenerate (zero-sigma) Normal *is* a point mass: map it to
             // the exact Axiom representation instead of erroring, so a
             // round trip through `from_distribution` is lossless.
@@ -323,7 +327,10 @@ mod tests {
     fn zero_sigma_normal_roundtrips_through_constant() {
         // sigma == 0 is a point mass: accepted, mapped to Constant, and the
         // round trip back is lossless (previously an error).
-        let point = Dist::Normal { mu: 7.5, sigma: 0.0 };
+        let point = Dist::Normal {
+            mu: 7.5,
+            sigma: 0.0,
+        };
         let dist = to_distribution(point).unwrap();
         assert_eq!(dist, Distribution::Constant(7.5));
         match from_distribution(&dist).unwrap() {
@@ -339,7 +346,11 @@ mod tests {
     fn huge_sigma_is_caught_after_squaring() {
         // sigma = 1e200 is finite, but sigma^2 overflows: the conversion
         // must reject it instead of storing an infinite variance.
-        let err = to_distribution(Dist::Normal { mu: 0.0, sigma: 1e200 }).unwrap_err();
+        let err = to_distribution(Dist::Normal {
+            mu: 0.0,
+            sigma: 1e200,
+        })
+        .unwrap_err();
         assert!(err.to_string().contains("overflows"), "{err}");
     }
 
@@ -347,7 +358,10 @@ mod tests {
     fn from_distribution_rejects_nan_instead_of_swallowing() {
         // A NaN variance used to be flattened to a zero-sigma normal by
         // `variance.max(0.0)`; now it is reported.
-        let bad = Distribution::Gaussian { mean: 0.0, variance: f64::NAN };
+        let bad = Distribution::Gaussian {
+            mean: 0.0,
+            variance: f64::NAN,
+        };
         assert!(from_distribution(&bad).is_err());
         assert!(from_fuzzy(Fuzzy::new(f64::NAN, 1.0)).is_err());
     }

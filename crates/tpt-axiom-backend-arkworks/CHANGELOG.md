@@ -20,8 +20,12 @@ and this crate adheres to [Semantic Versioning](https://semver.org/).
   `u8` parameter is proven in `[0, 2^8)`.
 - IR-level witness validation at prove time via the shared
   `tpt_axiom_zk::witness` check.
-- Canonical serialization helper (`to_bytes`) for keys and proofs, with a
-  wire-format roundtrip test.
+- Canonical serialization helpers (`to_bytes`/`from_bytes`) for keys and
+  proofs; `from_bytes` refuses trailing bytes rather than accepting a prefix
+  of a truncated or concatenated artifact. Roundtrip tests cover both.
+- `encode_proof`/`decode_proof` (compressed `CanonicalSerialize`) so claims can
+  be ported through `tpt_axiom_zk::ProofEnvelope`; `ArkworksProof` is now
+  `PartialEq` so envelope roundtrips are comparable.
 - Groth16 roundtrip/rejection tests (`tests/proofs.rs`); conformance-suite
   integration (`tests/conformance.rs`).
 - Criterion benchmarks matching the halo2 backend's scenario IDs

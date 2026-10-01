@@ -428,8 +428,7 @@ impl Halo2Circuit {
         let [a, b, c] = config.advice;
 
         // Instance row of each named public variable, precomputed once.
-        let mut instance_row_of_var: Vec<Option<usize>> =
-            vec![None; self.ir.variables.len()];
+        let mut instance_row_of_var: Vec<Option<usize>> = vec![None; self.ir.variables.len()];
         for (row, &p) in self.ir.public_inputs.iter().enumerate() {
             if let Some(Expr::Var(v)) = self.ir.exprs.get(p) {
                 instance_row_of_var[*v] = Some(row);

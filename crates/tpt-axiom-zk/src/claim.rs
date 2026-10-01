@@ -24,6 +24,41 @@ use tpt_axiom_ir::{Constraint, ConstraintSystem, Expr};
 use crate::ZkBackend;
 use tpt_axiom_ir::Scalar;
 
+/// The wire-format version [`ProofEnvelope`] writes. Bump when the field
+/// layout changes; readers reject other versions instead of guessing.
+pub const ENVELOPE_VERSION: u8 = 1;
+
+/// A serializable, version-tagged port of a [`ProofClaim`].
+///
+/// Everything a verifier needs — which backend, which circuit (by name and
+/// [`ir_digest`] commitment), the public inputs, and the proof bytes — with
+/// the exact IR digest binding a proof to its circuit, so a shipping
+/// envelope can never be silently re-verified against a different
+/// definition.
+///
+/// The serde feature derives the wire format; the struct fields are the
+/// format. Verifying-key persistence is deliberately *not* part of the
+/// envelope: halo2 0.3 keys are not portable bytes (its verifier
+/// regenerates the key deterministically from the IR + `k`, both
+/// identified by the digest), while arkworks keys ride alongside the
+/// envelope through the backend's own canonical serialization.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ProofEnvelope {
+    /// Wire-format version ([`ENVELOPE_VERSION`]).
+    pub version: u8,
+    /// The [`ZkBackend::name`] the proof was produced with.
+    pub backend: String,
+    /// The claimed circuit name.
+    pub circuit: String,
+    /// The [`ir_digest`] commitment to the exact circuit IR.
+    pub binding: [u8; 32],
+    /// The claimed public inputs, in the circuit's declaration order.
+    pub publics: Vec<Scalar>,
+    /// The backend's canonical proof bytes.
+    pub proof: Vec<u8>,
+}
+
 /// The SHA-256 digest of an IR's canonical encoding: the commitment a
 /// [`ProofClaim`] carries and [`ProofClaim::verify_with`] re-checks.
 ///
@@ -77,7 +112,12 @@ pub fn ir_digest(ir: &ConstraintSystem) -> [u8; 32] {
             }
         }
     }
-    for id in ir.var_exprs.iter().chain(&ir.public_inputs).chain(&ir.secret_inputs) {
+    for id in ir
+        .var_exprs
+        .iter()
+        .chain(&ir.public_inputs)
+        .chain(&ir.secret_inputs)
+    {
         feed_usize(&mut h, *id);
     }
     for c in &ir.constraints {
@@ -112,7 +152,10 @@ fn feed_usize(h: &mut Sha256, v: usize) {
 /// A portable, verifiable statement: `circuit` holds for `publics`, witnessed
 /// by an opaque backend-specific `proof`, committed to the exact IR it was
 /// proven against.
-#[derive(Clone, Debug, PartialEq, Eq)]
+///
+/// Equality compares all fields, so it needs the backend's proof to be
+/// `PartialEq` (both shipping backends' proofs are).
+#[derive(Clone, Debug)]
 pub struct ProofClaim<B: ZkBackend> {
     circuit: String,
     binding: [u8; 32],
@@ -157,6 +200,46 @@ impl<B: ZkBackend> ProofClaim<B> {
         &self.publics
     }
 
+    /// Ports this claim into a serializable [`ProofEnvelope`].
+    ///
+    /// # Errors
+    /// `None` when the backend cannot serialize its proofs (see
+    /// [`ZkBackend::encode_proof`]).
+    #[must_use]
+    pub fn to_envelope(&self, backend: &B) -> Option<ProofEnvelope> {
+        let proof = backend.encode_proof(&self.proof)?;
+        Some(ProofEnvelope {
+            version: ENVELOPE_VERSION,
+            backend: String::from(backend.name()),
+            circuit: self.circuit.clone(),
+            binding: self.binding,
+            publics: self.publics.clone(),
+            proof,
+        })
+    }
+
+    /// Rebuilds a claim from an envelope produced by [`Self::to_envelope`]
+    /// on `backend`. The digest binding survives the round trip, so the
+    /// rebuilt claim verifies exactly like the original — including the
+    /// refusal to verify against a different circuit.
+    ///
+    /// # Errors
+    /// `None` when the envelope was written for a different backend or
+    /// wire-format version, or the proof bytes do not decode.
+    #[must_use]
+    pub fn from_envelope(backend: &B, envelope: &ProofEnvelope) -> Option<Self> {
+        if envelope.version != ENVELOPE_VERSION || envelope.backend != backend.name() {
+            return None;
+        }
+        let proof = backend.decode_proof(&envelope.proof)?;
+        Some(Self {
+            circuit: envelope.circuit.clone(),
+            binding: envelope.binding,
+            publics: envelope.publics.clone(),
+            proof,
+        })
+    }
+
     /// Verifies this claim with `backend` against the circuit's verifying
     /// key, first checking the claim's IR commitment against `ir` — the
     /// circuit definition the verifier believes it is checking. A claim
@@ -183,6 +266,20 @@ impl<B: ZkBackend> ProofClaim<B> {
         backend.verify(vk, &self.publics, &self.proof)
     }
 }
+
+impl<B: ZkBackend> PartialEq for ProofClaim<B>
+where
+    B::Proof: PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.circuit == other.circuit
+            && self.binding == other.binding
+            && self.publics == other.publics
+            && self.proof == other.proof
+    }
+}
+
+impl<B: ZkBackend> Eq for ProofClaim<B> where B::Proof: PartialEq {}
 
 #[cfg(test)]
 mod tests {

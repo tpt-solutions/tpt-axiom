@@ -5,8 +5,7 @@
 #![cfg(feature = "serde")]
 
 use tpt_axiom_core::{
-    Bernoulli, Categorical, Confidence, Evidence, Fuzzy, Probability, Provenance, Score,
-    Uncertain,
+    Bernoulli, Categorical, Confidence, Evidence, Fuzzy, Probability, Provenance, Score, Uncertain,
 };
 
 #[test]
@@ -31,7 +30,10 @@ fn confidence_rejects_out_of_range_payloads() {
 
 #[test]
 fn fuzzy_rejects_invalid_variance_payloads() {
-    for bad in [r#"{"mean":1.0,"variance":-0.5}"#, r#"{"mean":1.0,"variance":"NaN"}"#] {
+    for bad in [
+        r#"{"mean":1.0,"variance":-0.5}"#,
+        r#"{"mean":1.0,"variance":"NaN"}"#,
+    ] {
         assert!(
             serde_json::from_str::<Fuzzy<f64>>(bad).is_err(),
             "{bad} must not deserialize into a Fuzzy"
@@ -87,6 +89,9 @@ fn probability_normalizes_negative_zero() {
     let p: Probability = serde_json::from_str("-0.0").unwrap();
     assert_eq!(p, Probability::ZERO);
     let raw = serde_json::to_string(&p).unwrap();
-    assert_eq!(raw, "0.0", "negative zero must not leak into the wire format");
+    assert_eq!(
+        raw, "0.0",
+        "negative zero must not leak into the wire format"
+    );
     let _ = Provenance::local(); // keep the import meaningful
 }

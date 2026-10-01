@@ -25,6 +25,22 @@ and this crate adheres to [Semantic Versioning](https://semver.org/).
   `DecisionRecord<T>`, `Calibration`, `BinaryDecision`, `Categorical::decide`.
 - Property-based invariant tests (proptest) and wire-format v1 serde
   roundtrip tests (`tests/properties.rs`).
+- `families` module: `Uniform`, `Beta`, `Gamma`, `LogNormal`, `StudentT`,
+  `Poisson`, `Binomial` behind the `ContinuousDistribution` /
+  `DiscreteDistribution` traits — `mean`, `variance`, `pdf`/`pmf`, `cdf`,
+  `quantile` (bracket-widening bisection), `prob_greater_than` — plus
+  `Beta::update_bernoulli` / `Gamma::update_poisson` conjugate updates and
+  `kl_gaussian`.
+- `special` module: dependency-free `lgamma`/`gamma` (Lanczos g=7, n=9),
+  `gamma_p`/`gamma_q` (series + Lentz continued fraction) and `beta_reg`
+  (mirror form + continued fraction), accurate to ~1e-14 in their domains.
+- `logits` module: temperature-scaled `softmax`/`log_softmax` (max-subtracted,
+  so large logits do not overflow), `cross_entropy`, `top_k`.
+- Nonlinear `Fuzzy` transforms: a generic `Fuzzy::transform(f, f', f'')` engine
+  with second-order mean correction (`f(m) + f''(m)·v/2`) and derivative
+  variance `(f'(m))²·v`, plus closed-form `exp`, `ln`, `sqrt`, `powi`, `tanh`
+  that follow IEEE semantics out of domain instead of panicking.
+- `Fuzzy::fuse_all` — checked N-way inverse-variance fusion.
 
 ### Changed
 

@@ -31,8 +31,9 @@ ark-bls12-381 = { workspace = true }
 rand = { workspace = true }
 
 [dev-dependencies]
+serde_json = "1"
 tpt-axiom-macros = { workspace = true }
-tpt-axiom-zk = { workspace = true, features = ["conformance"] }
+tpt-axiom-zk = { workspace = true, features = ["conformance", "serde"] }
 ark-bls12-381 = { workspace = true }
 ark-groth16 = { workspace = true }
 ark-relations = { workspace = true }

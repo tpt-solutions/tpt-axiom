@@ -10,7 +10,7 @@ use ark_serialize::CanonicalDeserialize;
 use ark_snark::SNARK;
 use tpt_axiom_backend_arkworks::{
     ArkworksBackend, ArkworksCircuit, ArkworksError, ArkworksProof, WitnessError, encode_scalar,
-    to_bytes,
+    from_bytes, to_bytes,
 };
 use tpt_axiom_ir::{ConstraintSystem, ConstraintSystemBuilder};
 use tpt_axiom_macros::zk_provable;
@@ -319,10 +319,7 @@ fn inputs_outside_declared_types_are_diagnosed() {
     let err = compiled(&NarrowRange.build())
         .with_witness(vec![300], vec![1])
         .expect_err("300 is not a u8");
-    assert!(matches!(
-        err,
-        WitnessError::InputOutOfRange { .. }
-    ));
+    assert!(matches!(err, WitnessError::InputOutOfRange { .. }));
     compiled(&NarrowRange.build())
         .with_witness(vec![200], vec![1])
         .expect("200 is a valid u8");
@@ -334,14 +331,68 @@ fn verify_with_wrong_public_count_is_a_clean_false() {
     let ir = ProveBalanceTransfer.build();
     let circuit = backend.compile(&ir).expect("compile");
     let (pk, vk) = backend.generate_keys(&ir, &[]).expect("keys");
-    let proof = backend.prove(&circuit, &pk, &[50, 20], &[30]).expect("prove");
+    let proof = backend
+        .prove(&circuit, &pk, &[50, 20], &[30])
+        .expect("prove");
     assert!(
         !backend.verify(&vk, &[50], &proof).expect("clean false"),
         "one public too few must not verify"
     );
     assert!(
-        !backend.verify(&vk, &[50, 20, 7], &proof).expect("clean false"),
+        !backend
+            .verify(&vk, &[50, 20, 7], &proof)
+            .expect("clean false"),
         "one public too many must not verify"
+    );
+}
+
+#[test]
+fn key_material_roundtrips_through_canonical_bytes() {
+    let backend = ArkworksBackend;
+    let ir = ProveBalanceTransfer.build();
+    let (_pk, vk) = backend.generate_keys(&ir, &[]).expect("keys");
+
+    // A verifier can be handed only the serialized key.
+    let vk_bytes = to_bytes(&vk).expect("encode vk");
+    let decoded: VerifyingKey<Bls12_381> = from_bytes(&vk_bytes).expect("decode vk");
+    assert_eq!(decoded, vk);
+
+    // Trailing bytes mean a truncated or concatenated artifact; accepting the
+    // prefix would verify against a different key than the file describes.
+    let mut padded = vk_bytes;
+    padded.push(0);
+    assert!(
+        from_bytes::<VerifyingKey<Bls12_381>>(&padded).is_err(),
+        "trailing bytes must be refused, not ignored"
+    );
+}
+
+#[test]
+fn proof_envelope_roundtrips_and_stays_bound() {
+    use tpt_axiom_zk::{ProofClaim, ir_digest};
+
+    let backend = ArkworksBackend;
+    let ir = ProveBalanceTransfer.build();
+    let circuit = backend.compile(&ir).expect("compile");
+    let (pk, vk) = backend.generate_keys(&ir, &[]).expect("keys");
+    let proof = backend
+        .prove(&circuit, &pk, &[50, 20], &[30])
+        .expect("prove");
+
+    let claim = ProofClaim::new("prove_balance_transfer", &ir, &[50, 20], proof);
+    let envelope = claim
+        .to_envelope(&backend)
+        .expect("groth16 proofs serialize");
+    assert_eq!(envelope.backend, "arkworks");
+    assert_eq!(envelope.binding, ir_digest(&ir));
+
+    let wire = serde_json::to_string(&envelope).expect("serialize");
+    let decoded: tpt_axiom_zk::ProofEnvelope = serde_json::from_str(&wire).expect("deserialize");
+    let rebuilt = ProofClaim::from_envelope(&backend, &decoded).expect("decode");
+    assert_eq!(rebuilt, claim);
+    assert!(
+        rebuilt.verify_with(&backend, &vk, &ir).expect("verify"),
+        "the envelope-ported proof must still verify"
     );
 }
 

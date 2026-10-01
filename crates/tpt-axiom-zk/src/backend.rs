@@ -1,5 +1,6 @@
 //! The [`ZkBackend`] trait implemented by adapter crates.
 
+use alloc::vec::Vec;
 use core::fmt::Display;
 
 use tpt_axiom_ir::{CircuitError, ConstraintSystem, R1CS, Scalar};
@@ -23,7 +24,10 @@ pub trait ZkBackend {
     /// Verifying key shipped to verifiers.
     type VerifyingKey;
     /// A produced proof.
-    type Proof;
+    ///
+    /// `Clone + Debug` because a proof is data: claims and audit bundles
+    /// carry and log it.
+    type Proof: Clone + core::fmt::Debug;
 
     /// Stable identifier, e.g. `"halo2"`, `"arkworks"`, `"sp1"`.
     fn name(&self) -> &'static str;
@@ -84,4 +88,17 @@ pub trait ZkBackend {
         public: &[Scalar],
         proof: &Self::Proof,
     ) -> Result<bool, Self::Error>;
+
+    /// Canonical bytes for a produced proof, when the backend supports
+    /// proof serialization (see [`ProofEnvelope`](crate::ProofEnvelope)).
+    /// `None` means the backend's proof type is not portable bytes.
+    fn encode_proof(&self, _proof: &Self::Proof) -> Option<Vec<u8>> {
+        None
+    }
+
+    /// Rebuilds a proof from [`Self::encode_proof`] bytes.
+    /// `None` means the bytes are not a proof of this backend.
+    fn decode_proof(&self, _bytes: &[u8]) -> Option<Self::Proof> {
+        None
+    }
 }

@@ -68,6 +68,7 @@ jobs:
       - run: cargo run -p tpt-axiom --example kalman_filter
       - run: cargo run -p tpt-axiom --example monte_carlo
       - run: cargo run -p tpt-axiom --example sensor_fusion
+      - run: cargo run -p tpt-axiom-backend-halo2 --example age_proof
       - run: cargo run -p tpt-axiom-backend-halo2 --example backend_comparison
 
   msrv:

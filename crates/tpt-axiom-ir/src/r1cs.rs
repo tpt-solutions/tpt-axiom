@@ -301,10 +301,20 @@ impl R1CS {
             // A product that overflows i128 cannot equal a `c` that fit
             // i128, so reporting GateFailed is exact, not an approximation.
             let Some(product) = a.checked_mul(b) else {
-                return Err(EvaluationError::GateFailed { index, lhs: a, rhs: b, out: c });
+                return Err(EvaluationError::GateFailed {
+                    index,
+                    lhs: a,
+                    rhs: b,
+                    out: c,
+                });
             };
             if product != c {
-                return Err(EvaluationError::GateFailed { index, lhs: a, rhs: b, out: c });
+                return Err(EvaluationError::GateFailed {
+                    index,
+                    lhs: a,
+                    rhs: b,
+                    out: c,
+                });
             }
         }
         for &R1csAssertion::NonNegative(slot) in &self.assertions {
@@ -452,11 +462,17 @@ mod tests {
         let r1cs = lower_r1cs(&ir).unwrap();
         assert_eq!(
             r1cs.evaluate(&[1]),
-            Err(EvaluationError::WitnessLength { got: 1, expected: r1cs.num_variables })
+            Err(EvaluationError::WitnessLength {
+                got: 1,
+                expected: r1cs.num_variables
+            })
         );
         let mut wrong_const = alloc::vec![0; r1cs.num_variables];
         wrong_const[r1cs.public_slots[0]] = 50;
-        assert_eq!(r1cs.evaluate(&wrong_const), Err(EvaluationError::ConstantSlot));
+        assert_eq!(
+            r1cs.evaluate(&wrong_const),
+            Err(EvaluationError::ConstantSlot)
+        );
     }
 
     #[test]

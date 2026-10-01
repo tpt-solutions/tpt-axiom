@@ -6,6 +6,15 @@ and this crate adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `audit` module: `ProofCarriedDecision<T, B>` — a `DecisionRecord<T>` bundled
+  with the `ProofClaim<B>` that justifies it. `verify` re-checks the carried
+  claim against the auditor's own circuit definition (so a weakened
+  redefinition is a clean `false`), and `claimed_publics` exposes the exact
+  statement the decision was computed from. Covered end to end in
+  `tests/audit.rs` against a real halo2 proof.
+
 ### Changed
 
 - Sub-crate dependencies updated to the renamed `tpt-axiom-core`,

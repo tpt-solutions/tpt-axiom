@@ -8,6 +8,15 @@ and this crate adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `ProofEnvelope` — a version-tagged (wire v1), `serde`-optional portable form of
+  a claim: backend name, circuit name, the `ir_digest` binding, the public inputs
+  and the canonical proof bytes. `ProofClaim::to_envelope`/`from_envelope`
+  round-trip a claim through JSON with its digest binding intact, so a shipped
+  proof still verifies against its own circuit and still refuses a different
+  one; a foreign backend name or wire version decodes to `None`.
+- `ZkBackend::encode_proof`/`decode_proof` hooks (defaulting to `None`) letting a
+  backend opt into envelope serialization.
+- `ProofClaim` gains `PartialEq`/`Eq` where the backend's proof type supports it.
 - `claim` module: `ProofClaim<B: ZkBackend>` — the portable, data-only
   verification boundary between probabilistic computation and zero-knowledge
   proof (circuit name + public inputs + opaque proof, verified through any
