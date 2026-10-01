@@ -26,7 +26,7 @@ pub mod prelude {
         AbstentionReason, Bernoulli, BinaryDecision, Calibration, Categorical, Confidence,
         Decision, DecisionRecord, Distribution, Escalation, Evidence, Fuzzy, Hypotheses,
         MultiLabelDecision, Probability, Provenance, Ranking, Reproducibility, Score, Uncertain,
-        Validate, classify_by_confidence, stats,
+        Validate, classify_by_confidence, softmax, stats,
     };
     pub use tpt_axiom_ir::{ConstraintSystem, ConstraintSystemBuilder, Scalar};
     pub use tpt_axiom_macros::zk_provable;

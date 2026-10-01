@@ -3,7 +3,9 @@
 //! `#[zk_provable]` macro so the whole pipeline (Rust, IR, `PLONKish`, proof)
 //! is exercised.
 
-use tpt_axiom_backend_halo2::{Halo2Backend, Halo2Circuit, WitnessError, auto_k, encode_scalar};
+use tpt_axiom_backend_halo2::{
+    Halo2Backend, Halo2Circuit, Halo2Error, WitnessError, auto_k, encode_scalar,
+};
 use tpt_axiom_ir::ConstraintSystem;
 use tpt_axiom_ir::ConstraintSystemBuilder;
 use tpt_axiom_macros::zk_provable;
@@ -45,6 +47,33 @@ fn weighted_sum(a: u64, b: u64, #[secret] k: u64) -> u64 {
 #[allow(clippy::missing_const_for_fn)] // kept fn shape is fixed by the macro
 fn narrow_range(#[public] small: u8, #[secret] bump: u8) {
     assert!(small >= bump);
+}
+
+#[zk_provable(backend = "halo2")]
+/// Verifiable uncertain claims (Phase D): the published fused estimate is the
+/// minimum-variance fusion of two secret readings (within a ±1-unit rounding
+/// window) and clears `threshold`. Means in milli-units, variances in
+/// micro-units².
+#[allow(clippy::missing_const_for_fn)] // kept fn shape is fixed by the macro
+fn prove_fused_estimate(
+    #[secret] mean_a: i64,
+    #[secret] var_a: i64,
+    #[secret] mean_b: i64,
+    #[secret] var_b: i64,
+    #[public] reported_mean: i64,
+    #[public] reported_variance: i64,
+    #[public] threshold: i64,
+) {
+    assert!(var_a >= 1 && var_b >= 1);
+    let v_sum = var_a + var_b;
+    let mean_num = mean_a * var_b + mean_b * var_a;
+    let mean_err = reported_mean * v_sum - mean_num;
+    assert!(mean_err + v_sum >= 0);
+    assert!(v_sum - mean_err >= 0);
+    let var_err = reported_variance * v_sum - var_a * var_b;
+    assert!(var_err + v_sum >= 0);
+    assert!(v_sum - var_err >= 0);
+    assert!(reported_mean >= threshold);
 }
 
 #[allow(clippy::missing_const_for_fn)] // trivial test helper
@@ -399,6 +428,58 @@ fn proof_envelope_roundtrips_and_stays_bound() {
     let mut foreign = decoded;
     foreign.backend = String::from("arkworks");
     assert!(ProofClaim::from_envelope(&backend, &foreign).is_none());
+}
+
+#[test]
+fn verifiable_fusion_claim_accepts_honest_readings() {
+    // A = 10.500 ± 0.200, B = 10.700 ± 0.300 in fixed point; published
+    // fusion rounded to the milli-unit grid.
+    let secrets = [10_500_i64, 40_000_i64, 10_700_i64, 90_000_i64];
+    let publics = [10_562_i64, 27_692_i64, 10_000_i64];
+    let backend = Halo2Backend;
+    let ir = ProveFusedEstimate.build();
+    let circuit = backend.compile(&ir).expect("compile");
+    let (pk, vk) = backend.generate_keys(&ir, &[]).expect("keys");
+    let proof = backend.prove(&circuit, &pk, &publics, &secrets).expect("prove");
+    assert!(
+        backend.verify(&vk, &publics, &proof).expect("verify"),
+        "the honest fusion claim must verify"
+    );
+    // The verifier learns the fusion — and nothing about which reading was
+    // which: swapped secrets describe the same published estimate.
+    let swapped = [secrets[2], secrets[3], secrets[0], secrets[1]];
+    let proof = backend.prove(&circuit, &pk, &publics, &swapped).expect("prove");
+    assert!(backend.verify(&vk, &publics, &proof).expect("verify"));
+}
+
+#[test]
+fn verifiable_fusion_claim_rejects_forgery() {
+    let secrets = [10_500_i64, 40_000_i64, 10_700_i64, 90_000_i64];
+    let publics = [10_562_i64, 27_692_i64, 10_000_i64];
+    let backend = Halo2Backend;
+    let ir = ProveFusedEstimate.build();
+    let circuit = backend.compile(&ir).expect("compile");
+    let (pk, _vk) = backend.generate_keys(&ir, &[]).expect("keys");
+
+    // Mis-stated fusion: 0.24 units off, far outside the rounding window.
+    let mut forged = publics;
+    forged[0] += 240;
+    assert!(matches!(
+        backend.prove(&circuit, &pk, &forged, &secrets),
+        Err(Halo2Error::Witness(WitnessError::Violated { .. }))
+    ));
+    // Below-threshold claim: inside the window, outside the policy.
+    let mut low = publics;
+    low[0] = 10_550;
+    low[2] = 10_600;
+    assert!(backend.prove(&circuit, &pk, &low, &secrets).is_err());
+    // Degenerate zero variance: rejected up front, before proving.
+    let mut zeroed = secrets;
+    zeroed[1] = 0;
+    assert!(matches!(
+        backend.prove(&circuit, &pk, &publics, &zeroed),
+        Err(Halo2Error::Witness(WitnessError::Violated { index: 0 }))
+    ));
 }
 
 #[test]

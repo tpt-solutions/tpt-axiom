@@ -1,7 +1,7 @@
 //! Name-keyed witness assignment: build a witness by variable *name* instead
 //! of by positional slot.
 //!
-//! [`witness::check`] takes two positional slices whose order is a property of
+//! [`witness::check`](crate::witness::check) takes two positional slices whose order is a property of
 //! the circuit's declaration order. That is exactly what a backend wants, but
 //! it is a poor interface for a caller (a JSON input file, a CLI `--in`, an
 //! audit bundle): silently transposing two adjacent `u64` fields produces a
@@ -165,7 +165,7 @@ impl NamedWitness {
 }
 
 /// A resolved witness: positional public and secret slices in IR declaration
-/// order, exactly the shape [`witness::check`] and
+/// order, exactly the shape [`witness::check`](crate::witness::check) and
 /// [`ZkBackend::prove`](crate::ZkBackend::prove) consume.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct WitnessValues {
@@ -191,7 +191,7 @@ impl WitnessValues {
     /// Validates these values against `ir`'s constraints and declared types.
     ///
     /// # Errors
-    /// As [`witness::check`].
+    /// As [`witness::check`](crate::witness::check).
     pub fn check(&self, ir: &ConstraintSystem) -> Result<(), crate::witness::WitnessError> {
         crate::witness::check(ir, &self.public, &self.secret)
     }

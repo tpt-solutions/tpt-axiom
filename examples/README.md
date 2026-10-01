@@ -24,6 +24,17 @@ Runnable examples for `tpt-axiom`, organized under each crate's own
 - [`backend_comparison`](../crates/tpt-axiom-backend-halo2/examples/backend_comparison.rs)
   — the same circuit through halo2 and arkworks side by side (one-glance
   timings; `cargo bench` is the statistically sound version).
+- [`age_proof`](../crates/tpt-axiom-backend-halo2/examples/age_proof.rs) —
+  prove you are old enough without revealing your age; includes an
+  adversarial underage witness being rejected at prove time.
+- [`sensor_fusion_claim`](../crates/tpt-axiom-backend-halo2/examples/sensor_fusion_claim.rs)
+  — verifiable sensor fusion: publish only the fused estimate and prove it
+  is the minimum-variance combination of two secret readings (fixed-point
+  `Fuzzy::fuse` as ZK constraints; three forgery paths rejected).
+- [`ml_decision_abstention`](../crates/tpt-axiom/examples/ml_decision_abstention.rs)
+  — an ML classifier whose low-confidence outputs abstain with a reason
+  instead of guessing: logits → normalized distribution → explicit
+  commit/review/reject policy.
 
 Run an example with:
 
