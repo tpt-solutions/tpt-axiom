@@ -16,6 +16,10 @@ categories = ["command-line-utilities", "cryptography"]
 [lints]
 workspace = true
 
+[lib]
+name = "tpt_axiom_cli"
+path = "src/lib.rs"
+
 # Named `cargo-axiom` so it is invocable as `cargo axiom` once on PATH
 # (cargo subcommand convention).
 [[bin]]
@@ -23,5 +27,31 @@ name = "cargo-axiom"
 path = "src/main.rs"
 
 [dependencies]
-tpt-axiom-zk = { workspace = true }
+# `serde` on the zk crate is what makes `ProofEnvelope` readable/writable by
+# the CLI's JSON I/O.
+tpt-axiom-zk = { workspace = true, features = ["serde", "registry"] }
 tpt-axiom-ir = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Proving backends are feature-gated: a verifier-only install should not pull a
+# prover's proving stack. `doctor` reports which are compiled in.
+tpt-axiom-backend-halo2 = { workspace = true, optional = true }
+tpt-axiom-backend-arkworks = { workspace = true, optional = true }
+
+[dev-dependencies]
+tpt-axiom-macros = { workspace = true }
+# The end-to-end CLI test drives a real halo2 prove/verify round trip.
+tpt-axiom-backend-halo2 = { workspace = true }
+
+[features]
+default = []
+halo2 = ["dep:tpt-axiom-backend-halo2"]
+arkworks = ["dep:tpt-axiom-backend-arkworks"]
+# Everything a full prover/verifier install needs.
+full = ["halo2", "arkworks"]
+
+# docs.rs builds with every feature so all doc examples render.
+[package.metadata.docs.rs]
+all-features = true

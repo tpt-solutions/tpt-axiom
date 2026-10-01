@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   registers the circuit so a binary can enumerate it — what lets a
   `cargo axiom check` pass walk every circuit without a hand-maintained list.
   Registry entries rebuild their IR on demand, so they cannot go stale.
+- `tpt-axiom-cli`: the real `cargo axiom` command surface — `doctor`,
+  `inspect`, `check`, `keygen`, `prove`, and `verify`, with `--json` throughout,
+  a library/binary split so the surface is unit-testable in-process, and exit
+  codes that distinguish a clean negative from a tool error. `check` walks the
+  circuit registry; `prove`/`verify` drive a real halo2 round trip through
+  name-keyed JSON inputs and a `ProofEnvelope`.
 - `tpt_axiom_zk::driver`: `keygen`, `prove_named`, `prove_ir_named`, and
   `verify_claim` — one checked path from a typed input struct to a verified
   proof, with IR validation, witness resolution, and the constraint check
