@@ -270,6 +270,10 @@ impl ConstraintSynthesizer<Fr> for ArkworksCircuit {
                     cs.enforce_constraint(var_lc(out), var_lc(Variable::One), neg_lc(n))?;
                     var_lc(out)
                 }
+                // A division node is assigned its evaluated value but is
+                // never constrained here: the quotient/remainder gadget's
+                // own gates and range checks tie it to its operands.
+                Expr::Div(_, _) => var_lc(Self::alloc_node(&cs, witness.node(id))?),
                 Expr::Mul(l, r) => {
                     let out = Self::alloc_node(&cs, witness.node(id))?;
                     let (l, r) = (

@@ -110,6 +110,13 @@ pub fn ir_digest(ir: &ConstraintSystem) -> [u8; 32] {
                 h.update([5]);
                 feed_usize(&mut h, n);
             }
+            // Appended last so digests of circuits without division nodes
+            // are unchanged.
+            Expr::Div(l, r) => {
+                h.update([6]);
+                feed_usize(&mut h, l);
+                feed_usize(&mut h, r);
+            }
         }
     }
     for id in ir

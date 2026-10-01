@@ -51,6 +51,12 @@ pub fn normalize_all(cs: &ConstraintSystem) -> Vec<Polynomial> {
             Expr::Sub(l, r) => table[l].clone() - table[r].clone(),
             Expr::Mul(l, r) => table[l].clone() * table[r].clone(),
             Expr::Neg(e) => -table[e].clone(),
+            // Division is not a polynomial operation. Div nodes exist only
+            // inside the division gadget, whose constraints reference the
+            // quotient through Mul/Sub — never as `Div` arithmetic. A check
+            // that somehow reaches a Div node compares against zero and
+            // fails loudly, which is the safe direction for a verifier.
+            Expr::Div(_, _) => Polynomial::zero(),
         };
         table.push(p);
     }
@@ -119,6 +125,15 @@ pub fn evaluate(cs: &ConstraintSystem, inputs: &[(&str, Scalar)]) -> Vec<Scalar>
             Expr::Sub(l, r) => table[l] - table[r],
             Expr::Mul(l, r) => table[l] * table[r],
             Expr::Neg(e) => -table[e],
+            // Truncated division, matching `witness::evaluate_nodes` (None
+            // on a zero divisor, which the gadget's constraints reject).
+            Expr::Div(l, r) => {
+                if table[r] == 0 {
+                    0
+                } else {
+                    table[l] / table[r]
+                }
+            }
         };
         table.push(v);
     }

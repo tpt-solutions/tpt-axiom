@@ -50,6 +50,23 @@ fn narrow_range(#[public] small: u8, #[secret] bump: u8) {
 }
 
 #[zk_provable(backend = "halo2")]
+/// The division gadget: a public quotient over a secret divisor, proven
+/// through the quotient/remainder identity and the remainder's range.
+#[allow(clippy::missing_const_for_fn)] // kept fn shape is fixed by the macro
+fn divide(#[public] x: u64, #[public] quotient: u64, #[secret] d: u64) {
+    assert!(d >= 1);
+    assert_eq!(x / d, quotient);
+}
+
+#[zk_provable(backend = "halo2")]
+/// The remainder half of the gadget.
+#[allow(clippy::missing_const_for_fn)] // kept fn shape is fixed by the macro
+fn remainder_of(#[public] x: u64, #[public] rem: u64, #[secret] d: u64) {
+    assert!(d >= 1);
+    assert_eq!(x % d, rem);
+}
+
+#[zk_provable(backend = "halo2")]
 /// Verifiable uncertain claims (Phase D): the published fused estimate is the
 /// minimum-variance fusion of two secret readings (within a ±1-unit rounding
 /// window) and clears `threshold`. Means in milli-units, variances in
@@ -480,6 +497,43 @@ fn verifiable_fusion_claim_rejects_forgery() {
         backend.prove(&circuit, &pk, &publics, &zeroed),
         Err(Halo2Error::Witness(WitnessError::Violated { index: 0 }))
     ));
+}
+
+#[test]
+fn division_gadget_roundtrips_and_rejects_forged_quotients() {
+    let backend = Halo2Backend;
+    let ir = Divide.build();
+    let circuit = backend.compile(&ir).expect("compile");
+    let (pk, vk) = backend.generate_keys(&ir, &[]).expect("keys");
+
+    // 100 / 7 = 14 with remainder 2: the honest quotient proves and verifies.
+    let proof = backend.prove(&circuit, &pk, &[100, 14], &[7]).expect("prove");
+    assert!(backend.verify(&vk, &[100, 14], &proof).expect("verify"));
+
+    // The forged quotient 15 implies remainder -5, outside [0, d-1].
+    let err = backend
+        .prove(&circuit, &pk, &[100, 15], &[7])
+        .expect_err("a forged quotient must not prove");
+    assert!(matches!(
+        err,
+        Halo2Error::Witness(WitnessError::Violated { .. })
+    ));
+
+    // A zero divisor fails the gadget's range constraints — division by
+    // zero cannot prove.
+    assert!(backend.prove(&circuit, &pk, &[100, 14], &[0]).is_err());
+}
+
+#[test]
+fn remainder_gadget_roundtrips() {
+    let backend = Halo2Backend;
+    let ir = RemainderOf.build();
+    let circuit = backend.compile(&ir).expect("compile");
+    let (pk, vk) = backend.generate_keys(&ir, &[]).expect("keys");
+    let proof = backend.prove(&circuit, &pk, &[100, 2], &[7]).expect("prove");
+    assert!(backend.verify(&vk, &[100, 2], &proof).expect("verify"));
+    // Wrong remainder: 3 implies quotient 13.857…, outside the integers.
+    assert!(backend.prove(&circuit, &pk, &[100, 3], &[7]).is_err());
 }
 
 #[test]

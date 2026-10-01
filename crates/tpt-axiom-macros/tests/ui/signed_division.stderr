@@ -1,0 +1,5 @@
+error: division is supported for unsigned operands only: the quotient/remainder gadget constrains a non-negative remainder, which truncated division of a negative value would violate. Express signed division through explicit multiplication instead
+ --> tests/ui/signed_division.rs:5:5
+  |
+5 |     x / d
+  |     ^

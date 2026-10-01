@@ -228,6 +228,13 @@ pub fn evaluate_nodes(
             Expr::Add(l, r) => bin_op(&values, *l, *r, i128::checked_add),
             Expr::Sub(l, r) => bin_op(&values, *l, *r, i128::checked_sub),
             Expr::Mul(l, r) => bin_op(&values, *l, *r, i128::checked_mul),
+            Expr::Div(l, r) => values
+                .get(*l)
+                .copied()
+                .flatten()
+                .zip(values.get(*r).copied().flatten())
+                .filter(|(_, b)| *b != 0)
+                .map(|(a, b)| a / b),
             Expr::Neg(n) => values
                 .get(*n)
                 .copied()
@@ -253,6 +260,7 @@ fn evaluate_checked(
             Expr::Add(l, r) => binary(&values, *l, *r, i128::checked_add, id)?,
             Expr::Sub(l, r) => binary(&values, *l, *r, i128::checked_sub, id)?,
             Expr::Mul(l, r) => binary(&values, *l, *r, i128::checked_mul, id)?,
+            Expr::Div(l, r) => div_trunc(&values, *l, *r),
             Expr::Neg(n) => values
                 .get(*n)
                 .copied()
@@ -280,6 +288,17 @@ fn variable_value(
         (Some(i), Some(secret)) => secret.get(i).copied(),
         _ => None,
     }
+}
+
+/// Truncated integer division; division by zero evaluates to `None` — the
+/// gadget's range constraints then fail, which is the documented behavior
+/// for a zero divisor.
+fn div_trunc(values: &[Option<i128>], l: usize, r: usize) -> Option<i128> {
+    let (a, b) = (values.get(l).copied().flatten()?, values.get(r).copied().flatten()?);
+    if b == 0 {
+        return None;
+    }
+    Some(a / b)
 }
 
 fn binary(

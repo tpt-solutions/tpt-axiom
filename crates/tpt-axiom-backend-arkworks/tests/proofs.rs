@@ -54,6 +54,16 @@ fn narrow_range(#[public] small: u8, #[secret] bump: u8) {
     assert!(small >= bump);
 }
 
+#[zk_provable(backend = "arkworks")]
+/// The division gadget through the R1CS lowering: the quotient node itself
+/// is unconstrained; the quotient/remainder identity and range checks tie
+/// it down.
+#[allow(clippy::missing_const_for_fn)] // kept fn shape is fixed by the macro
+fn divide(#[public] x: u64, #[public] quotient: u64, #[secret] d: u64) {
+    assert!(d >= 1);
+    assert_eq!(x / d, quotient);
+}
+
 #[allow(clippy::missing_const_for_fn)] // trivial test helper
 fn compiled(ir: &ConstraintSystem) -> ArkworksCircuit {
     ArkworksCircuit::compile(ir, 64)
@@ -394,6 +404,23 @@ fn proof_envelope_roundtrips_and_stays_bound() {
         rebuilt.verify_with(&backend, &vk, &ir).expect("verify"),
         "the envelope-ported proof must still verify"
     );
+}
+
+#[test]
+fn division_gadget_roundtrips_and_rejects_forged_quotients() {
+    let backend = ArkworksBackend;
+    let ir = Divide.build();
+    let circuit = backend.compile(&ir).expect("compile");
+    let (pk, vk) = backend.generate_keys(&ir, &[]).expect("keys");
+
+    // 100 / 7 = 14, remainder 2: proves and verifies.
+    let proof = backend.prove(&circuit, &pk, &[100, 14], &[7]).expect("prove");
+    assert!(backend.verify(&vk, &[100, 14], &proof).expect("verify"));
+
+    // Forged quotient 15 implies a negative remainder.
+    assert!(backend.prove(&circuit, &pk, &[100, 15], &[7]).is_err());
+    // Zero divisor: the gadget's range constraints fail.
+    assert!(backend.prove(&circuit, &pk, &[100, 14], &[0]).is_err());
 }
 
 #[test]

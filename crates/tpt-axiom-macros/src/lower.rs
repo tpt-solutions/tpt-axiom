@@ -861,29 +861,61 @@ impl Lowerer {
                 )),
             },
             Expr::Binary(bin) => {
-                let method = match bin.op {
-                    BinOp::Add(_) => "add",
-                    BinOp::Sub(_) => "sub",
-                    BinOp::Mul(_) => "mul",
+                let l = self.compile_expr(&bin.left)?;
+                let r = self.compile_expr(&bin.right)?;
+                let t = self.fresh();
+                match bin.op {
+                    BinOp::Add(_) | BinOp::Sub(_) | BinOp::Mul(_) => {
+                        let method = match bin.op {
+                            BinOp::Add(_) => "add",
+                            BinOp::Sub(_) => "sub",
+                            _ => "mul",
+                        };
+                        let method = Ident::new(method, Span::call_site());
+                        self.tokens
+                            .extend(quote! { let #t = __axiom_builder.#method(#l, #r); });
+                    }
                     BinOp::Div(_) | BinOp::Rem(_) => {
-                        return Err(Error::new(
-                            bin.span(),
-                            "division and remainder are not supported as circuit arithmetic; express them as multiplication by a public/secret inverse explicitly",
-                        ));
+                        // The quotient/remainder gadget. Sound only for
+                        // unsigned operands: truncated division of a
+                        // negative dividend leaves a non-positive
+                        // remainder, which the gadget's range checks would
+                        // reject at prove time — so signed division is a
+                        // compile error with that explanation.
+                        let (l_spec, r_spec) = (
+                            self.spec_of(&bin.left, &l)?,
+                            self.spec_of(&bin.right, &r)?,
+                        );
+                        if l_spec.signed || r_spec.signed {
+                            return Err(Error::new(
+                                bin.span(),
+                                "division is supported for unsigned operands only: the quotient/remainder gadget constrains a non-negative remainder, which truncated division of a negative value would violate. Express signed division through explicit multiplication instead",
+                            ));
+                        }
+                        let is_rem = matches!(bin.op, BinOp::Rem(_));
+                        self.tokens.extend(quote! {
+                            let __axiom_quotient = __axiom_builder.div_trunc(#l, #r);
+                            __axiom_builder.constrain_division(#l, #r, __axiom_quotient);
+                        });
+                        if is_rem {
+                            // remainder = dividend - quotient * divisor.
+                            let product = self.fresh();
+                            self.tokens.extend(quote! {
+                                let #product = __axiom_builder.mul(__axiom_quotient, #r);
+                                let #t = __axiom_builder.sub(#l, #product);
+                            });
+                        } else {
+                            self.tokens
+                                .extend(quote! { let #t = __axiom_quotient; });
+                        }
                     }
                     _ => {
                         return Err(Error::new(
                             bin.span(),
-                            "only `+`, `-` and `*` are supported in #[zk_provable] arithmetic",
+                            "only `+`, `-`, `*`, `/` and `%` are supported in #[zk_provable] arithmetic",
                         ));
                     }
-                };
-                let l = self.compile_expr(&bin.left)?;
-                let r = self.compile_expr(&bin.right)?;
-                let method = Ident::new(method, Span::call_site());
-                let t = self.fresh();
-                self.tokens
-                    .extend(quote! { let #t = __axiom_builder.#method(#l, #r); });
+                }
                 Ok(t)
             }
             Expr::Call(call) => Err(Error::new(
@@ -934,6 +966,39 @@ impl Lowerer {
                 other.span(),
                 "unsupported expression in #[zk_provable] function; only integer arithmetic over `+`, `-`, `*` and literals is allowed",
             )),
+        }
+    }
+
+    /// The integer spec an operand carries: the declared type of a name
+    /// binding, unsigned-64 for literals, or the wider of the two operands
+    /// for an intermediate (its source expression's own specs).
+    fn spec_of(&self, expr: &Expr, handle: &Ident) -> syn::Result<IntSpec> {
+        let _ = handle;
+        match expr {
+            Expr::Path(path) => {
+                let name = path.path.segments[0].ident.to_string();
+                Ok(self.types.get(&name).copied().unwrap_or(IntSpec::I64))
+            }
+            Expr::Lit(lit) => {
+                let _ = lit;
+                Ok(IntSpec {
+                    bits: 64,
+                    signed: false,
+                })
+            }
+            Expr::Binary(bin) => {
+                // The handle was produced from these operands; their specs
+                // join to the result's.
+                let l = self.spec_of(&bin.left, handle)?;
+                let r = self.spec_of(&bin.right, handle)?;
+                Ok(IntSpec {
+                    bits: l.bits.max(r.bits),
+                    signed: l.signed || r.signed,
+                })
+            }
+            Expr::Paren(paren) => self.spec_of(&paren.expr, handle),
+            Expr::Unary(unary) => self.spec_of(&unary.expr, handle),
+            _ => Ok(IntSpec::I64),
         }
     }
 

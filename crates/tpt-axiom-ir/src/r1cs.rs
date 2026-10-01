@@ -120,7 +120,9 @@ pub fn lower_r1cs(ir: &ConstraintSystem) -> Result<R1CS, CircuitError> {
     for (id, e) in ir.exprs.iter().enumerate() {
         match e {
             Expr::Const(v) => gates.push(const_gate(slot(id), *v)),
-            Expr::Var(_) => {}
+            // A division node has no gate of its own: the quotient/
+            // remainder gadget constrains it through its operands.
+            Expr::Var(_) | Expr::Div(_, _) => {}
             Expr::Add(l, r) => {
                 let o = slot(id);
                 gates.push(R1csGate {
@@ -418,6 +420,9 @@ mod tests {
                 }
                 Expr::Mul(l, r) => {
                     witness[r1cs.expr_slots[l].unwrap()] * witness[r1cs.expr_slots[r].unwrap()]
+                }
+                Expr::Div(l, r) => {
+                    witness[r1cs.expr_slots[l].unwrap()] / witness[r1cs.expr_slots[r].unwrap()]
                 }
                 Expr::Neg(n) => -witness[r1cs.expr_slots[n].unwrap()],
             };

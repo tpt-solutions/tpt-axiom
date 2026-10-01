@@ -160,6 +160,13 @@ pub enum Expr {
     Mul(ExprId, ExprId),
     /// `-e`
     Neg(ExprId),
+    /// Truncated integer division `l / r` (evaluates to `None` — and the
+    /// gadget's constraints fail — for `r == 0`). Never constrained by a
+    /// gate of its own: a division node is only sound inside the
+    /// quotient/remainder gadget ([`ConstraintSystemBuilder::constrain_division`]),
+    /// whose `Mul`/`Sub`/`NonNegative` constraints tie the quotient to its
+    /// operands.
+    Div(ExprId, ExprId),
 }
 
 /// A logical constraint the circuit must enforce.
@@ -332,6 +339,8 @@ pub fn bit_bounds(ir: &ConstraintSystem) -> Vec<u32> {
             Expr::Var(var) => ir.variables.get(var).map_or(64, |info| info.int_type.bits),
             Expr::Add(l, r) | Expr::Sub(l, r) => add_bounds(&bounds, l, r),
             Expr::Mul(l, r) => mul_bounds(&bounds, l, r),
+            // The quotient of `l / r` is bounded by `l` itself.
+            Expr::Div(l, _) => bounds.get(l).copied().unwrap_or(0),
             Expr::Neg(n) => bounds.get(n).copied().unwrap_or(0),
         };
         bounds.push(bound);
@@ -431,7 +440,7 @@ impl ConstraintSystem {
                         return Err(CircuitError::VarExprMismatch { var });
                     }
                 }
-                Expr::Add(l, r) | Expr::Sub(l, r) | Expr::Mul(l, r) => {
+                Expr::Add(l, r) | Expr::Sub(l, r) | Expr::Mul(l, r) | Expr::Div(l, r) => {
                     for operand in [l, r] {
                         if operand >= self.exprs.len() {
                             return Err(CircuitError::OutOfRangeOperand { expr: id, operand });
@@ -636,6 +645,36 @@ impl ConstraintSystemBuilder {
     /// `l * r`
     pub fn mul(&mut self, l: ExprId, r: ExprId) -> ExprId {
         self.push(Expr::Mul(l, r))
+    }
+
+    /// Truncated division node `l / r` (rounds toward zero; evaluates to
+    /// `None` when `r == 0`). The node is *unconstrained by itself* — pair
+    /// it with [`Self::constrain_division`] so the quotient/remainder
+    /// identity and the remainder's range tie it to its operands.
+    pub fn div_trunc(&mut self, dividend: ExprId, divisor: ExprId) -> ExprId {
+        self.push(Expr::Div(dividend, divisor))
+    }
+
+    /// The division gadget for a [`Self::div_trunc`] node `quotient` of
+    /// `dividend / divisor`: constrains `dividend == quotient·divisor +
+    /// remainder` with `remainder ∈ [0, divisor − 1]` — the unique
+    /// decomposition for a positive divisor, so the quotient cannot be
+    /// forged.
+    ///
+    /// Sound only for non-negative dividends and divisors ≥ 1 (the macro
+    /// emits this gadget only for unsigned operands); negative truncated
+    /// division leaves a non-positive remainder, which the `NonNegative`
+    /// range checks reject at prove time.
+    pub fn constrain_division(&mut self, dividend: ExprId, divisor: ExprId, quotient: ExprId) {
+        let product = self.mul(quotient, divisor);
+        let remainder = self.sub(dividend, product);
+        // remainder >= 0 and divisor - remainder - 1 >= 0 together pin the
+        // remainder to [0, divisor - 1].
+        let headroom = self.sub(divisor, remainder);
+        let one = self.constant(1);
+        let last = self.sub(headroom, one);
+        self.constrain_non_negative(remainder);
+        self.constrain_non_negative(last);
     }
 
     /// `-e`

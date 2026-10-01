@@ -122,6 +122,27 @@ fn conjunction_of_comparisons_lowers_both_halves() {
     .expect("second half must encode x <= hi");
 }
 
+#[zk_provable(backend = "arkworks")]
+/// Division and remainder lower to the quotient/remainder gadget for
+/// unsigned operands; the original function still runs as plain Rust.
+fn unsigned_division(x: u64, d: u64) -> u64 {
+    let q = x / d;
+    let r = x % d;
+    assert!(r < d);
+    q
+}
+
+#[test]
+fn division_gadget_lowers_and_reruns() {
+    // Original Rust semantics kept.
+    assert_eq!(unsigned_division(100, 7), 14);
+    let ir = UnsignedDivision.build();
+    // x, q, r... the assert's NonNegative plus the gadget's two NonNegative
+    // range checks (remainder >= 0, divisor - remainder - 1 >= 0).
+    assert!(ir.constraints.len() >= 3);
+    assert!(ir.validate().is_ok());
+}
+
 #[zk_provable(backend = "halo2")]
 #[allow(clippy::missing_const_for_fn)] // kept fn shape is fixed by the macro
 #[allow(clippy::eq_op)] // the point is that debug_assert_eq! lowers at all
