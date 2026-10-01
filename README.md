@@ -105,9 +105,9 @@ assert_eq!(decision.committed(), None);
 Run the worked examples:
 
 ```sh
-cargo run -p tpt-axiom --example kalman_filter    # 1-D Kalman filter from plain +/*
-cargo run -p tpt-axiom --example monte_carlo      # simulation vs analytic propagation
-cargo run -p tpt-axiom --example sensor_fusion    # minimum-variance sensor fusion
+cargo run -p tpt-axiom-examples --example kalman_filter    # 1-D Kalman filter from plain +/*
+cargo run -p tpt-axiom-examples --example monte_carlo      # simulation vs analytic propagation
+cargo run -p tpt-axiom-examples --example sensor_fusion    # minimum-variance sensor fusion
 ```
 
 ### 2. Zero-knowledge circuits from ordinary functions
@@ -172,10 +172,10 @@ field wraparound, and violating witnesses are rejected at prove time with a
 constraint index. Witness a full run in separate processes:
 
 ```sh
-cargo run -p tpt-axiom-backend-halo2 --example balance_transfer_prove  -- target/demo-proof
-cargo run -p tpt-axiom-backend-halo2 --example balance_transfer_verify -- target/demo-proof
-cargo run -p tpt-axiom-backend-halo2 --example age_proof              # prove age ≥ 18 without revealing it
-cargo run -p tpt-axiom-backend-halo2 --example backend_comparison      # both backends, side by side
+cargo run -p tpt-axiom-examples --example balance_transfer_prove  -- target/demo-proof
+cargo run -p tpt-axiom-examples --example balance_transfer_verify -- target/demo-proof
+cargo run -p tpt-axiom-examples --example age_proof              # prove age ≥ 18 without revealing it
+cargo run -p tpt-axiom-examples --example backend_comparison      # both backends, side by side
 ```
 
 ### Choosing a backend

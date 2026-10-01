@@ -18,6 +18,6 @@ must be destroyed after setup; anyone holding it can forge proofs. The
 in-process `OsRng` setup is development-grade — production needs a
 multi-party ceremony. See [Honest limits](limits.md).
 
-The `custom_backend` example in `tpt-axiom-zk` walks through the whole
+The `custom_backend` example (in the examples crate) walks through the whole
 `ZkBackend` contract for adapter authors, using the reference R1CS lowering
 in place of real cryptography.

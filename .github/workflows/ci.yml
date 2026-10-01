@@ -65,17 +65,20 @@ jobs:
       - run: cargo build -p tpt-axiom-core --target wasm32-unknown-unknown
       # Every example must keep running (the halo2 comparison exercises
       # both real backends end to end).
-      - run: cargo run -p tpt-axiom --example kalman_filter
-      - run: cargo run -p tpt-axiom --example monte_carlo
-      - run: cargo run -p tpt-axiom --example sensor_fusion
-      - run: cargo run -p tpt-axiom --example ml_decision_abstention
-      - run: cargo run -p tpt-axiom --example ab_test
-      - run: cargo run -p tpt-axiom-zk --example custom_backend
-      - run: cargo run -p tpt-axiom-backend-halo2 --example age_proof
-      - run: cargo run -p tpt-axiom-backend-halo2 --example sensor_fusion_claim
-      - run: cargo run -p tpt-axiom-backend-halo2 --example credit_score_gate
-      - run: cargo run -p tpt-axiom-backend-halo2 --example proof_service
-      - run: cargo run -p tpt-axiom-backend-halo2 --example backend_comparison
+      - run: cargo run -p tpt-axiom-examples --example kalman_filter
+      - run: cargo run -p tpt-axiom-examples --example monte_carlo
+      - run: cargo run -p tpt-axiom-examples --example sensor_fusion
+      - run: cargo run -p tpt-axiom-examples --example ml_decision_abstention
+      - run: cargo run -p tpt-axiom-examples --example ab_test
+      - run: cargo run -p tpt-axiom-examples --example custom_backend
+      - run: cargo run -p tpt-axiom-examples --example age_proof
+      - run: cargo run -p tpt-axiom-examples --example sensor_fusion_claim
+      - run: cargo run -p tpt-axiom-examples --example credit_score_gate
+      - run: cargo run -p tpt-axiom-examples --example proof_service
+      - run: cargo run -p tpt-axiom-examples --example backend_comparison
+      # The two-process proof-file pair, in order.
+      - run: cargo run -p tpt-axiom-examples --example balance_transfer_prove -- target/ci-proof
+      - run: cargo run -p tpt-axiom-examples --example balance_transfer_verify -- target/ci-proof
 
   msrv:
     name: msrv

@@ -9,7 +9,7 @@ round-trip a claim through JSON with the digest intact — a rebuilt claim
 still verifies, and still *refuses* a proof replayed against a different
 circuit definition.
 
-The `proof_service` example shows the deployment shape: a prover service
+The `proof_service` example (in the examples crate) shows the deployment shape: a prover service
 (name-keyed JSON witness in, envelope out — the secret witness never leaves
 that process), a verifier service (envelope in, verdict out), and a client
 watching a tampered envelope get refused. The CLI (`cargo axiom prove

@@ -26,6 +26,7 @@ members = [
     "crates/tpt-axiom-interop",
     "crates/tpt-axiom-cli",
     "crates/tpt-axiom",
+    "crates/tpt-axiom-examples",
 ]
 
 [workspace.package]
@@ -59,7 +60,9 @@ tpt-axiom-backend-halo2 = { version = "0.1.0", path = "crates/tpt-axiom-backend-
 tpt-axiom-backend-arkworks = { version = "0.1.0", path = "crates/tpt-axiom-backend-arkworks" }
 tpt-axiom-backend-sp1 = { version = "0.1.0", path = "crates/tpt-axiom-backend-sp1" }
 
+tpt-axiom = { version = "0.1.0", path = "crates/tpt-axiom" }
 tpt-axiom-interop = { version = "0.1.0", path = "crates/tpt-axiom-interop" }
+tpt-axiom-examples = { version = "0.1.0", path = "crates/tpt-axiom-examples" }
 
 num-traits = "0.2"
 sha2 = { version = "0.10", default-features = false }

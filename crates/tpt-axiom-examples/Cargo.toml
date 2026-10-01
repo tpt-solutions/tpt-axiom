@@ -1,0 +1,33 @@
+[package]
+name = "tpt-axiom-examples"
+description = "The tpt-axiom example suite: one crate, every worked example (each documents its expected output and runs in CI)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+readme = "README.md"
+keywords = ["probability", "zero-knowledge", "examples"]
+categories = ["mathematics", "cryptography"]
+publish = false
+
+[lints]
+workspace = true
+
+# Examples live here instead of inside the library crates so that (a) the
+# libraries stay lean and (b) one `cargo run -p tpt-axiom-examples --example
+# ...` reaches every walkthrough regardless of which crate it exercises.
+
+[dependencies]
+tpt-axiom = { workspace = true }
+tpt-axiom-backend-halo2 = { workspace = true }
+tpt-axiom-backend-arkworks = { workspace = true }
+tpt-axiom-core = { workspace = true }
+tpt-axiom-ir = { workspace = true }
+tpt-axiom-macros = { workspace = true }
+tpt-axiom-zk = { workspace = true, features = ["serde", "conformance"] }
+serde_json = "1"
+halo2_proofs = { workspace = true }
