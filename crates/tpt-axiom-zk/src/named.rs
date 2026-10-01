@@ -45,10 +45,16 @@ use tpt_axiom_ir::{ConstraintSystem, Expr, Scalar};
 /// assert_eq!(values.secret(), &[30]);
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(transparent)
+)]
 pub struct NamedWitness {
     /// Insertion-ordered `(name, value)` pairs. A `Vec` rather than a map keeps
     /// this crate `no_std` without a hash container and preserves write order,
-    /// which makes resolution errors deterministic.
+    /// which makes resolution errors deterministic. (With `serde`, the wire
+    /// format is this list verbatim: `[["name", value], ...]`.)
     entries: Vec<(String, Scalar)>,
 }
 

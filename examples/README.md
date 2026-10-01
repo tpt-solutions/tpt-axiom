@@ -46,6 +46,10 @@ Runnable examples for `tpt-axiom`, organized under each crate's own
   `ZkBackend` adapter skeleton for backend authors: the full trait contract
   over the reference R1CS lowering, with zero cryptography and every step
   annotated.
+- [`proof_service`](../crates/tpt-axiom-backend-halo2/examples/proof_service.rs)
+  — separate prover and verifier services over localhost TCP: the secret
+  witness stays in the prover process, a `ProofEnvelope` is the only thing
+  that crosses the wire, and a tampered envelope is refused.
 
 Run an example with:
 
