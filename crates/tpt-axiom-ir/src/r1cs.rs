@@ -266,6 +266,32 @@ pub enum EvaluationError {
     Malformed,
 }
 
+impl core::fmt::Display for EvaluationError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::GateFailed {
+                index,
+                lhs,
+                rhs,
+                out,
+            } => write!(
+                f,
+                "gate #{index} failed: {lhs} * {rhs} != {out}"
+            ),
+            Self::NonNegativeFailed { slot, value } => {
+                write!(f, "witness slot {slot} is negative ({value})")
+            }
+            Self::WitnessLength { got, expected } => {
+                write!(f, "witness has {got} entries, expected {expected}")
+            }
+            Self::ConstantSlot => f.write_str("witness[0] must equal the constant 1"),
+            Self::Malformed => f.write_str("malformed witness or gate"),
+        }
+    }
+}
+
+impl core::error::Error for EvaluationError {}
+
 impl R1CS {
     /// Check a full witness assignment (including `witness[0] == 1`).
     ///

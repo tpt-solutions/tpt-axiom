@@ -87,6 +87,21 @@ pub trait ContinuousDistribution {
     fn moments(&self) -> (f64, f64) {
         (self.mean(), self.variance())
     }
+
+    /// The central credible/coverage interval: the `(quantile(tail),
+    /// quantile(1 − tail))` pair containing approximately `level` of the
+    /// mass.
+    ///
+    /// # Panics
+    /// Panics if `level` is outside `(0, 1)`.
+    fn credible_interval(&self, level: f64) -> (f64, f64) {
+        assert!(
+            level > 0.0 && level < 1.0,
+            "credible interval needs 0 < level < 1, got {level}"
+        );
+        let tail = (1.0 - level) / 2.0;
+        (self.quantile(tail), self.quantile(1.0 - tail))
+    }
 }
 
 /// A discrete distribution over the non-negative integers.

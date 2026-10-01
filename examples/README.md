@@ -35,6 +35,17 @@ Runnable examples for `tpt-axiom`, organized under each crate's own
   — an ML classifier whose low-confidence outputs abstain with a reason
   instead of guessing: logits → normalized distribution → explicit
   commit/review/reject policy.
+- [`ab_test`](../crates/tpt-axiom/examples/ab_test.rs) — an A/B test decided
+  on Beta posteriors: conjugate updates, credible intervals, `P(B > A)` by
+  quadrature, and an explicit ship bar that thin evidence honestly fails.
+- [`credit_score_gate`](../crates/tpt-axiom-backend-halo2/examples/credit_score_gate.rs)
+  — prove an applicant clears a lending threshold without revealing the
+  score (public scorecard, secret data, near-miss and tampered-scorecard
+  forgeries).
+- [`custom_backend`](../crates/tpt-axiom-zk/examples/custom_backend.rs) — a
+  `ZkBackend` adapter skeleton for backend authors: the full trait contract
+  over the reference R1CS lowering, with zero cryptography and every step
+  annotated.
 
 Run an example with:
 

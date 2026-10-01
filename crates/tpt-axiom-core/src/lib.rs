@@ -29,6 +29,7 @@
 
 extern crate alloc;
 
+mod correlated;
 mod decision_types;
 mod distribution;
 mod families;
@@ -41,6 +42,7 @@ pub mod special;
 pub use crate::decision_types::{
     BinaryDecision, Calibration, DecisionRecord, Hypotheses, MultiLabelDecision, Ranking,
 };
+pub use crate::correlated::{Correlated, CorrelationError};
 pub use crate::distribution::{Distribution, InvalidVariance};
 pub use crate::families::{
     Beta, Binomial, ContinuousDistribution, DiscreteDistribution, DomainError, Gamma, LogNormal,

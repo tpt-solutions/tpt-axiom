@@ -50,9 +50,10 @@ pub fn lgamma(x: f64) -> f64 {
             let fi = i as f64;
             a += c / (z + fi);
         }
-        (2.0 * PI).sqrt() * t.powf(z + 0.5) * (-t).exp() * a
+        // Assembled directly in log space: computing Γ first would overflow
+        // already around x ≈ 172.
+        0.5 * (2.0 * PI).ln() + (z + 0.5) * t.ln() - t + a.ln()
     }
-    .ln()
 }
 
 /// `Γ(x)` for positive arguments (exponentiated [`lgamma`]).
@@ -250,6 +251,9 @@ mod tests {
         assert!((lgamma(5.0) - 24.0_f64.ln()).abs() < 1e-12);
         assert!((lgamma(0.5) - (PI.sqrt()).ln()).abs() < 1e-13);
         assert!((lgamma(10.0) - 362_880.0_f64.ln()).abs() < 1e-10);
+        // Large arguments must not overflow (Γ first would overflow ~x=172).
+        assert!((lgamma(1002.0) - 5_919.036_933_267_479).abs() < 1e-9);
+        assert!(lgamma(1.0e5).is_finite());
         assert!(lgamma(0.0).is_nan());
     }
 
