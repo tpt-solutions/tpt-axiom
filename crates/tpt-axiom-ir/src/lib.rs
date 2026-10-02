@@ -30,7 +30,7 @@ pub mod circuit;
 pub mod r1cs;
 
 pub use circuit::{
-    CircuitError, Constraint, ConstraintSystem, ConstraintSystemBuilder, Expr, IntType,
+    AuxKind, CircuitError, Constraint, ConstraintSystem, ConstraintSystemBuilder, Expr, IntType,
     VariableInfo, Visibility,
 };
 pub use r1cs::{EvaluationError, Linear, R1CS, R1csAssertion, R1csGate, evaluate_linear};

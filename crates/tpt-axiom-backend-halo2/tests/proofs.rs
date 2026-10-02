@@ -556,3 +556,50 @@ fn overflow_bound_circuit_is_rejected_at_compile() {
         "unexpected error: {err}"
     );
 }
+
+// --- Gadgets end to end: `!=`, `if`, bounded `for`, solved selectors ---
+
+#[zk_provable(backend = "halo2")]
+fn halo2_gadgets(#[public] cutoff: i64, #[secret] score: i64) -> i64 {
+    assert!(score != cutoff);
+    let mut acc = 0;
+    for i in 1..4 {
+        acc += i * score;
+    }
+    let label = if score >= cutoff { 1 } else { 0 };
+    label
+}
+
+#[test]
+fn gadget_circuit_proves_with_solved_selectors() {
+    use tpt_axiom_zk::{KeygenOptions, keygen, prove_named, verify_claim};
+    let backend = Halo2Backend;
+    let (pk, vk) = keygen(&backend, &Halo2Gadgets, KeygenOptions::defaults()).expect("keygen");
+
+    // score = 6, cutoff = 5: 6 ≠ 5, the branch selects, acc = 6+12+18 = 36,
+    // label = 1. The prover names only the declared inputs — every selector
+    // is solved inside the driver.
+    let witness = Halo2GadgetsInputs::new(5, 6).named().expect("named");
+    let witness = Halo2GadgetsInputs::with_output(witness, 1);
+    let claim = prove_named(&backend, &Halo2Gadgets, &pk, &witness).expect("prove");
+    assert!(
+        verify_claim(&backend, &Halo2Gadgets, &vk, &claim).expect("verify"),
+        "the solved-selector proof must verify"
+    );
+
+    // The mirrored branch (score below cutoff) proves too: label = 0 with
+    // the selector on the other arm.
+    let witness = Halo2GadgetsInputs::new(5, 2).named().expect("named");
+    let witness = Halo2GadgetsInputs::with_output(witness, 0);
+    let claim = prove_named(&backend, &Halo2Gadgets, &pk, &witness).expect("prove");
+    assert!(verify_claim(&backend, &Halo2Gadgets, &vk, &claim).expect("verify"));
+
+    // score == cutoff: the `!=` gadget is unsatisfiable in either arm, so
+    // the driver refuses before any proving work.
+    let false_witness = Halo2GadgetsInputs::new(5, 5).named().expect("named");
+    let false_witness = Halo2GadgetsInputs::with_output(false_witness, 0);
+    assert!(
+        prove_named(&backend, &Halo2Gadgets, &pk, &false_witness).is_err(),
+        "a false inequality must not produce a claim"
+    );
+}

@@ -377,8 +377,14 @@ mod tests {
     }
 
     /// Bottom-up filler: give every expression slot the value implied by its
-    /// children, given assigned public/secret inputs.
-    fn satisfy(ir: &ConstraintSystem, witness: &mut [Scalar], r1cs: &R1CS) {
+    /// children, given assigned public/secret inputs and solved free (aux)
+    /// witnesses.
+    fn satisfy(ir: &ConstraintSystem, witness: &mut [Scalar], r1cs: &R1CS, aux: &[Scalar]) {
+        let aux_slots: Vec<usize> = ir
+            .free_variables()
+            .iter()
+            .filter_map(|&v| r1cs.var_slots[v])
+            .collect();
         for (id, e) in ir.exprs.iter().enumerate() {
             let Some(slot) = r1cs.expr_slots[id] else {
                 continue;
@@ -409,7 +415,14 @@ mod tests {
                             .unwrap();
                         witness[r1cs.secret_slots[idx]]
                     } else {
-                        unreachable!("unclassified variable")
+                        // A free (aux) variable: filled from the solved tail.
+                        let idx = aux_slots
+                            .iter()
+                            .position(|&s| Some(s) == r1cs.var_slots[v])
+                            .unwrap_or_else(|| panic!("unclassified variable {v}"));
+                        *aux.get(idx).unwrap_or_else(|| {
+                            panic!("free variable {v} has no solved value")
+                        })
                     }
                 }
                 Expr::Add(l, r) => {
@@ -443,7 +456,7 @@ mod tests {
         witness[r1cs.public_slots[0]] = 50;
         witness[r1cs.public_slots[1]] = 20;
         witness[r1cs.expr_slots[amount_expr].unwrap()] = 30;
-        satisfy(&ir, &mut witness, &r1cs);
+        satisfy(&ir, &mut witness, &r1cs, &[]);
         r1cs.evaluate(&witness).unwrap();
     }
 
@@ -456,7 +469,7 @@ mod tests {
         witness[r1cs.public_slots[0]] = 50;
         witness[r1cs.public_slots[1]] = 20;
         witness[r1cs.expr_slots[amount_expr].unwrap()] = 100; // violates surplus >= 0
-        satisfy(&ir, &mut witness, &r1cs);
+        satisfy(&ir, &mut witness, &r1cs, &[]);
         assert!(r1cs.evaluate(&witness).is_err());
     }
 
@@ -472,7 +485,7 @@ mod tests {
         let mut witness = vec![0; r1cs.num_variables];
         witness[0] = 1;
         witness[r1cs.public_slots[0]] = 5;
-        satisfy(&ir, &mut witness, &r1cs); // const node pinned by its gate
+        satisfy(&ir, &mut witness, &r1cs, &[]); // const node pinned by its gate
         r1cs.evaluate(&witness).unwrap();
         assert_eq!(witness[r1cs.expr_slots[s].unwrap()], 12);
     }

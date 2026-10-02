@@ -96,7 +96,7 @@ pub fn prove_ir_named<B: ZkBackend>(
         .compile(ir)
         .map_err(|e| ProveError::Backend(e.to_string()))?;
     let proof = backend
-        .prove(&compiled, pk, values.public(), values.secret())
+        .prove(&compiled, pk, values.public(), &values.secret_with_aux())
         .map_err(|e| ProveError::Backend(e.to_string()))?;
     Ok(ProofClaim::new(circuit_name, ir, values.public(), proof))
 }

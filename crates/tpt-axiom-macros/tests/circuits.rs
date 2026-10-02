@@ -386,3 +386,89 @@ proptest::proptest! {
         proptest::prop_assert_eq!(rust_ok, ir_ok);
     }
 }
+
+// --- Gadgets: `!=`, `if`, bounded `for` -------------------------------
+
+#[zk_provable(backend = "halo2")]
+#[allow(clippy::needless_if)] // the `if` statement is the point
+fn not_equal(#[public] a: i64, #[secret] b: i64) {
+    assert!(a != b);
+}
+
+#[test]
+fn not_equal_lowers_to_a_free_selector_gadget() {
+    let ir = NotEqual.build();
+    assert!(ir.validate().is_ok());
+    // The gadget's selector is a free witness: secret-visibility, never a
+    // named input, solved by the driver.
+    assert_eq!(ir.num_free(), 1);
+    assert_eq!(ir.num_secret(), 1);
+    // Booleanity + two disjunction arms.
+    assert!(ir.constraints.len() >= 3);
+    // The kept original still runs as plain Rust.
+    not_equal(3, 4);
+}
+
+#[zk_provable(backend = "halo2")]
+#[allow(clippy::needless_if)] // the `if` statement is the point
+fn gated_overdraft(#[public] limit: i64, #[secret] amount: i64, #[secret] balance: i64) {
+    if amount >= limit {
+        assert!(balance >= amount);
+    }
+}
+
+#[test]
+fn if_statement_lowers_to_gated_constraints() {
+    let ir = GatedOverdraft.build();
+    assert!(ir.validate().is_ok());
+    assert_eq!(ir.num_free(), 1, "the branch selector");
+    // The branch assert appears as a gated (multiplied) NonNegative, so
+    // unselected branches are vacuous: at least one NonNegative targets a
+    // Mul node (the selector gate times the branch difference).
+    assert!(ir.constraints.iter().any(|c| matches!(
+        c,
+        Constraint::NonNegative(e) if matches!(ir.exprs[*e], tpt_axiom_ir::Expr::Mul(_, _))
+    )));
+    gated_overdraft(10, 3, 100);
+}
+
+#[zk_provable(backend = "arkworks")]
+fn threshold_classify(#[secret] score: i64, #[public] cutoff: i64) -> i64 {
+    let label = if score >= cutoff { 1 } else { 0 };
+    label
+}
+
+#[test]
+fn if_expression_lowers_to_a_selector_multiplex() {
+    // Kept-original semantics first.
+    assert_eq!(threshold_classify(8, 5), 1);
+    assert_eq!(threshold_classify(2, 5), 0);
+    let ir = ThresholdClassify.build();
+    assert!(ir.validate().is_ok());
+    assert_eq!(ir.num_free(), 1);
+}
+
+#[zk_provable(backend = "arkworks")]
+fn weighted_sum_unrolled(#[secret] x: i64, #[public] total: i64) {
+    let mut acc = 0;
+    for i in 1..5 {
+        acc += i * x;
+    }
+    assert_eq!(acc, total);
+}
+
+#[test]
+fn bounded_for_unrolls_with_an_accumulator() {
+    // 1x + 2x + 3x + 4x = 10x.
+    assert_eq!(weighted_sum_unrolled(7, 70), ());
+    let ir = WeightedSumUnrolled.build();
+    assert!(ir.validate().is_ok());
+    assert_eq!(ir.num_free(), 0, "loops need no selectors");
+    // Four iterations, each contributing a Mul gate for `i * x`.
+    let muls = ir
+        .exprs
+        .iter()
+        .filter(|e| matches!(e, tpt_axiom_ir::Expr::Mul(_, _)))
+        .count();
+    assert!(muls >= 4);
+}

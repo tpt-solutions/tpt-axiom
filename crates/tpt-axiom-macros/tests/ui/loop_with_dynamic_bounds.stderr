@@ -1,5 +1,5 @@
-error: control flow is not supported in #[zk_provable] functions; only straight-line arithmetic is allowed
- --> tests/ui/loop_with_dynamic_bounds.rs:5:5
+error: `for` bounds must be integer literals; a fixed circuit cannot depend on a runtime trip count
+ --> tests/ui/loop_with_dynamic_bounds.rs:5:17
   |
 5 |     for _ in 0..n {
-  |     ^^^
+  |                 ^

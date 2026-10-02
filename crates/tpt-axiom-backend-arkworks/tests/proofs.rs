@@ -443,3 +443,46 @@ fn overflow_bound_circuit_is_rejected_at_keygen() {
         "unexpected error: {err}"
     );
 }
+
+// --- Gadgets end to end: `!=`, `if`, bounded `for`, solved selectors ---
+
+#[zk_provable(backend = "arkworks")]
+fn arkworks_gadgets(#[public] cutoff: i64, #[secret] score: i64) -> i64 {
+    assert!(score != cutoff);
+    let mut acc = 0;
+    for i in 1..4 {
+        acc += i * score;
+    }
+    let label = if score >= cutoff { 1 } else { 0 };
+    label
+}
+
+#[test]
+fn gadget_circuit_proves_with_solved_selectors() {
+    use tpt_axiom_zk::{KeygenOptions, keygen, prove_named, verify_claim};
+    let backend = tpt_axiom_backend_arkworks::ArkworksBackend;
+    let (pk, vk) = keygen(&backend, &ArkworksGadgets, KeygenOptions::defaults()).expect("keygen");
+
+    // score = 6, cutoff = 5: the positive arm of every gadget.
+    let witness = ArkworksGadgetsInputs::new(5, 6).named().expect("named");
+    let witness = ArkworksGadgetsInputs::with_output(witness, 1);
+    let claim = prove_named(&backend, &ArkworksGadgets, &pk, &witness).expect("prove");
+    assert!(
+        verify_claim(&backend, &ArkworksGadgets, &vk, &claim).expect("verify"),
+        "the solved-selector Groth16 proof must verify"
+    );
+
+    // The mirrored branch: score below cutoff, label = 0.
+    let witness = ArkworksGadgetsInputs::new(5, 2).named().expect("named");
+    let witness = ArkworksGadgetsInputs::with_output(witness, 0);
+    let claim = prove_named(&backend, &ArkworksGadgets, &pk, &witness).expect("prove");
+    assert!(verify_claim(&backend, &ArkworksGadgets, &vk, &claim).expect("verify"));
+
+    // score == cutoff: refused by the `!=` gadget before proving.
+    let false_witness = ArkworksGadgetsInputs::new(5, 5).named().expect("named");
+    let false_witness = ArkworksGadgetsInputs::with_output(false_witness, 0);
+    assert!(
+        prove_named(&backend, &ArkworksGadgets, &pk, &false_witness).is_err(),
+        "a false inequality must not produce a claim"
+    );
+}

@@ -136,10 +136,13 @@ impl ArkworksCircuit {
                 got: public.len(),
             });
         }
-        if secret.len() != self.ir.secret_inputs.len() {
+        // Free (aux) witness values ride the tail of the secret slice (see
+        // `tpt_axiom_zk::witness::solve_free_variables`).
+        let expected_secret = self.ir.secret_inputs.len() + self.ir.num_free();
+        if secret.len() != expected_secret {
             return Err(tpt_axiom_zk::witness::WitnessError::Arity {
                 kind: "secret",
-                expected: self.ir.secret_inputs.len(),
+                expected: expected_secret,
                 got: secret.len(),
             });
         }
@@ -237,6 +240,21 @@ impl ConstraintSynthesizer<Fr> for ArkworksCircuit {
                         .ok_or(SynthesisError::AssignmentMissing)
                 })?;
             }
+        }
+        // Free (aux) variables — the solved selector bits of gadgets — are
+        // secret-visibility witness variables that no named-input pass
+        // allocated. Their declared 1-bit type is range-checked with every
+        // other variable below.
+        for var_id in ir.free_variables() {
+            let expr_id = ir
+                .var_expr_id(var_id)
+                .expect("validated: every variable has an expression");
+            let value = witness.node(expr_id);
+            var_of[var_id] = cs.new_witness_variable(|| {
+                value
+                    .map(encode_i128)
+                    .ok_or(SynthesisError::AssignmentMissing)
+            })?;
         }
 
         // A witness variable per operation node; the value is precomputed so

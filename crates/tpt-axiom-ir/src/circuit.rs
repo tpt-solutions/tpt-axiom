@@ -51,6 +51,8 @@ impl IntType {
     pub const U32: Self = Self::new(32, false);
     /// Unsigned 64-bit.
     pub const U64: Self = Self::new(64, false);
+    /// Unsigned 1-bit — the declared type of a free boolean witness.
+    pub const U1: Self = Self::new(1, false);
 
     /// Builds a type description from a bit width and signedness.
     #[must_use]
@@ -130,6 +132,20 @@ impl Default for IntType {
     }
 }
 
+/// The domain a free (prover-supplied) witness variable ranges over.
+///
+/// Free variables are internal circuit machinery — the selector bits of
+/// disjunctive gadgets such as `!=` and `if` — not named inputs. The prover
+/// does not supply them: the witness driver *solves* them by search over the
+/// domain, trying candidates until the full constraint set is satisfied.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AuxKind {
+    /// A boolean: the solver tries `0` and `1`. Backends additionally
+    /// range-check the variable against its declared 1-bit type, so a
+    /// non-binary value fails proving even where a search was bypassed.
+    Bool,
+}
+
 /// Metadata about a named variable.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VariableInfo {
@@ -139,6 +155,12 @@ pub struct VariableInfo {
     pub visibility: Visibility,
     /// The integer type the parameter was declared with; drives range checks.
     pub int_type: IntType,
+    /// `Some` for a free (prover-supplied, driver-solved) witness variable.
+    ///
+    /// Free variables are `Visibility::Secret` but deliberately *not* listed
+    /// in [`ConstraintSystem::secret_inputs`]: they are not part of the
+    /// caller-facing witness API and no caller can supply them.
+    pub aux: Option<AuxKind>,
 }
 
 /// A node in the arithmetic expression DAG.
@@ -282,6 +304,13 @@ pub enum CircuitError {
         /// Its worst-case bit width.
         bits: u32,
     },
+    /// Secret input slot `slot` points at a free (aux) witness variable; free
+    /// variables are solved by the driver, never supplied by the caller, so
+    /// listing one as a named input is a malformed IR.
+    SecretSlotIsFree {
+        /// Index into `secret_inputs`.
+        slot: usize,
+    },
 }
 
 impl core::fmt::Display for CircuitError {
@@ -317,6 +346,11 @@ impl core::fmt::Display for CircuitError {
                 f,
                 "expression #{expr} can reach {bits} bits; intermediates must stay below \
                  {MAX_FAITHFUL_BITS} bits or the field may wrap and break integer semantics"
+            ),
+            Self::SecretSlotIsFree { slot } => write!(
+                f,
+                "secret input slot {slot} points at a free witness variable; free variables are \
+                 solved by the driver and cannot be declared as named inputs"
             ),
         }
     }
@@ -487,6 +521,9 @@ impl ConstraintSystem {
                 if info.visibility != expected {
                     return Err(CircuitError::InputVisibilityMismatch { slot, kind });
                 }
+                if kind == "secret" && info.aux.is_some() {
+                    return Err(CircuitError::SecretSlotIsFree { slot });
+                }
             }
         }
         for (index, constraint) in self.constraints.iter().enumerate() {
@@ -516,6 +553,25 @@ impl ConstraintSystem {
     #[must_use]
     pub fn num_secret(&self) -> usize {
         self.secret_inputs.len()
+    }
+
+    /// The variable ids of every free (aux) witness variable, in declaration
+    /// order. These are the slots a solved aux witness fills, appended after
+    /// the named secret inputs.
+    #[must_use]
+    pub fn free_variables(&self) -> Vec<usize> {
+        self.variables
+            .iter()
+            .enumerate()
+            .filter(|(_, info)| info.aux.is_some())
+            .map(|(id, _)| id)
+            .collect()
+    }
+
+    /// How many free (aux) witness variables the circuit declares.
+    #[must_use]
+    pub fn num_free(&self) -> usize {
+        self.variables.iter().filter(|info| info.aux.is_some()).count()
     }
 
     /// Render the circuit as a multi-line textual description (diagnostics and
@@ -609,12 +665,53 @@ impl ConstraintSystemBuilder {
         self.declare_var(name, Visibility::Secret, int_type)
     }
 
+    /// Declare a *free* boolean witness variable and return its expression id.
+    ///
+    /// A free variable is circuit-internal state the prover never names: the
+    /// witness driver solves it by search over `{0, 1}` (the selector bit of a
+    /// `!=` or `if` gadget, typically). It is `Visibility::Secret` for
+    /// assignment purposes but deliberately absent from `secret_inputs`, so
+    /// name-keyed witnesses and backends' arity checks ignore it; its value
+    /// rides the secret slice *after* the named secrets, in declaration
+    /// order. The declared type is 1-bit unsigned, and every backend
+    /// range-checks it like any named input — a non-binary value cannot be
+    /// proven even if a caller bypasses the solver.
+    pub fn free_bool(&mut self, name: &str) -> ExprId {
+        self.declare_var_aux(name, Visibility::Secret, IntType::U1, AuxKind::Bool)
+    }
+
+    fn declare_var_aux(
+        &mut self,
+        name: &str,
+        visibility: Visibility,
+        int_type: IntType,
+        aux: AuxKind,
+    ) -> ExprId {
+        let var_id = self.system.variables.len();
+        self.system.variables.push(VariableInfo {
+            name: name.to_owned(),
+            visibility,
+            int_type,
+            aux: Some(aux),
+        });
+        self.system.exprs.push(Expr::Var(var_id));
+        self.system.var_exprs.push(self.system.exprs.len() - 1);
+        self.named_exprs.push(Some(name.to_owned()));
+        let id = self.system.exprs.len() - 1;
+        match visibility {
+            Visibility::Public => self.system.public_inputs.push(id),
+            Visibility::Secret => {} // free variables are not named inputs
+        }
+        id
+    }
+
     fn declare_var(&mut self, name: &str, visibility: Visibility, int_type: IntType) -> ExprId {
         let var_id = self.system.variables.len();
         self.system.variables.push(VariableInfo {
             name: name.to_owned(),
             visibility,
             int_type,
+            aux: None,
         });
         self.system.exprs.push(Expr::Var(var_id));
         self.system.var_exprs.push(self.system.exprs.len() - 1);
@@ -901,5 +998,35 @@ mod tests {
         let sum = b.add(ab, cd);
         b.constrain_non_negative(sum);
         assert!(b.build().validate().is_ok());
+    }
+
+    #[test]
+    fn free_bool_is_secret_but_not_a_named_input() {
+        let mut b = ConstraintSystemBuilder::new("free");
+        let x = b.public_input("x");
+        let s = b.free_bool("__axiom_free0");
+        let gated = b.mul(s, x);
+        b.constrain_non_negative(gated);
+        let ir = b.build();
+
+        assert_eq!(ir.num_free(), 1);
+        assert_eq!(ir.free_variables(), [1]);
+        assert_eq!(ir.num_secret(), 0, "free variables are not named inputs");
+        assert_eq!(ir.expr_int_type(s), Some(IntType::U1));
+        assert!(ir.validate().is_ok());
+    }
+
+    #[test]
+    fn a_secret_slot_may_not_point_at_a_free_variable() {
+        let mut b = ConstraintSystemBuilder::new("bad");
+        let s = b.free_bool("s");
+        b.constrain_non_negative(s);
+        let mut ir = b.build();
+        // Forge the malformed shape the rule exists for.
+        ir.secret_inputs.push(ir.var_exprs[0]);
+        assert_eq!(
+            ir.validate(),
+            Err(CircuitError::SecretSlotIsFree { slot: 0 })
+        );
     }
 }

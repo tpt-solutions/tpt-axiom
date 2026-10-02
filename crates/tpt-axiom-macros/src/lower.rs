@@ -7,8 +7,8 @@ use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::{
-    BinOp, Block, Error, Expr, ExprBinary, ExprReturn, FnArg, ItemFn, Lit, LitStr, Local, Macro,
-    Pat, ReturnType, Stmt, Type, UnOp,
+    BinOp, Block, Error, Expr, ExprAssign, ExprBinary, ExprForLoop, ExprIf, ExprReturn, FnArg,
+    ItemFn, Lit, LitStr, Local, Macro, Pat, ReturnType, Stmt, Type, UnOp,
 };
 
 /// Lowers an annotated function into (original fn + circuit definition).
@@ -38,6 +38,9 @@ pub fn lower_function(func: &ItemFn, backend: &str, register: bool) -> syn::Resu
         output_int,
         ir_path: ir_path.clone(),
         params: Vec::new(),
+        gate: None,
+        renames: BTreeMap::new(),
+        mut_names: BTreeSet::new(),
     };
     lowerer.declare_params(func)?;
     lowerer.lower_block(&func.block)?;
@@ -361,6 +364,12 @@ impl IntSpec {
         signed: true,
     };
 
+    /// Unsigned 64-bit; the spec a `for` loop's constant counter carries.
+    const U64: Self = Self {
+        bits: 64,
+        signed: false,
+    };
+
     /// The IR constructor expression for this type, given the resolved path to
     /// `tpt-axiom-ir`.
     fn ir_expr(self, ir_path: &TokenStream) -> TokenStream {
@@ -471,7 +480,26 @@ struct Lowerer {
     /// The annotated parameters, in declaration order, for the generated
     /// `Inputs` struct.
     params: Vec<ParamInfo>,
+    /// The enclosing conditional selector, as the generated Rust local holding
+    /// its `ExprId` (`None` = unconditional). Inside an `if` branch every
+    /// constraint is emitted as `gate·(·)` — a selector-gated product is
+    /// vacuous exactly when the branch is not selected, which is how
+    /// straight-line constraints encode branching soundly.
+    gate: Option<Ident>,
+    /// Source-name → generated-local renames, used for `for` loop counters:
+    /// the counter binds a fresh generated local per iteration, so nothing
+    /// after the loop can accidentally capture it.
+    renames: BTreeMap<String, Ident>,
+    /// Names declared `let mut` — the only targets `name = expr;` (and its
+    /// `+=`/`-=`/`*=` forms) may rebind, as a fresh SSA value.
+    mut_names: BTreeSet<String>,
 }
+
+/// The most iterations a `for i in a..b` loop may unroll.
+///
+/// Unrolling is the only way a fixed circuit can loop; a cap keeps a typo
+/// (`0..1_000_000_000`) a fast compile error instead of a hang.
+const MAX_LOOP_UNROLL: i64 = 1024;
 
 impl Lowerer {
     fn fresh(&mut self) -> Ident {
@@ -546,6 +574,11 @@ impl Lowerer {
         match stmt {
             Stmt::Local(local) => self.lower_local(local),
             Stmt::Macro(sm) => self.lower_macro(&sm.mac),
+            // Bounded `for` loops and `if` statements lower through the
+            // selector gadgets; everything else control-flow-shaped keeps its
+            // dedicated error in `lower_expr_stmt`.
+            Stmt::Expr(Expr::ForLoop(for_), _) => self.lower_for(for_),
+            Stmt::Expr(Expr::If(if_), _) => self.lower_if_stmt(if_),
             Stmt::Expr(expr, semi) => {
                 self.lower_expr_stmt(expr, semi.is_none() && is_last, is_last)
             }
@@ -554,6 +587,346 @@ impl Lowerer {
                 "nested items are not supported inside #[zk_provable] functions",
             )),
         }
+    }
+
+    /// Runs `f` with the current name/type scopes snapshotted, restoring them
+    /// afterwards: bindings made inside a branch or loop body must not leak
+    /// out (Rust block scoping).
+    fn scoped<F>(&mut self, f: F) -> syn::Result<()>
+    where
+        F: FnOnce(&mut Self) -> syn::Result<()>,
+    {
+        let bound = self.bound.clone();
+        let types = self.types.clone();
+        let renames = self.renames.clone();
+        let result = f(self);
+        self.bound = bound;
+        self.types = types;
+        self.renames = renames;
+        result
+    }
+
+    /// A free boolean selector: a circuit-internal witness the driver solves
+    /// (never a named input). Uniquely numbered per circuit.
+    fn emit_free_bool(&mut self) -> Ident {
+        let t = self.fresh();
+        let name = format!("__axiom_free{}", self.counter);
+        self.counter += 1;
+        let name = LitStr::new(&name, Span::call_site());
+        self.tokens
+            .extend(quote! { let #t = __axiom_builder.free_bool(#name); });
+        t
+    }
+
+    /// `gate·expr` — the expression under the enclosing selector gate, or the
+    /// expression itself when unconditional.
+    fn gate_mul(&mut self, expr: &Ident) -> Ident {
+        let gate = self.gate.clone();
+        match gate {
+            Some(g) => {
+                let t = self.fresh();
+                self.tokens
+                    .extend(quote! { let #t = __axiom_builder.mul(#g, #expr); });
+                t
+            }
+            None => expr.clone(),
+        }
+    }
+
+    /// Force `s ∈ {0, 1}`: `s·s == s`, or the gated `g·(s·s − s) == 0` inside
+    /// a branch. Deliberately *not* gated by `s`'s own branch condition — a
+    /// two-valued selector stays two-valued whether or not its branch is
+    /// active, which keeps the solver's candidate set exact.
+    fn emit_booleanity(&mut self, s: &Ident) {
+        let sq = self.fresh();
+        self.tokens
+            .extend(quote! { let #sq = __axiom_builder.mul(#s, #s); });
+        let gate = self.gate.clone();
+        match gate {
+            Some(g) => {
+                let diff = self.emit_sub(&sq, s);
+                let gated = self.fresh();
+                self.tokens
+                    .extend(quote! { let #gated = __axiom_builder.mul(#g, #diff); });
+                self.emit_zero(&gated);
+            }
+            None => self.emit_eq(&sq, s),
+        }
+    }
+
+    /// The `a != b` gadget: a free selector `t` with `t·t == t`,
+    /// `t·(a−b) − t ≥ 0` (so `t = 1 ⇒ a ≥ b + 1`) and
+    /// `t·(a−b+1) − (a−b+1) ≥ 0` (so `t = 0 ⇒ a ≤ b − 1`). Satisfiable iff
+    /// `a ≠ b` over the integers, and `t` is forced to the side the
+    /// difference actually lies on — which is what makes the same gadget
+    /// usable as the pinning half of an `!=` *condition*. `gate` is the
+    /// fully-resolved enclosing selector (`None` = unconditional); when it is
+    /// `Some`, every emitted constraint is vacuous unless the branch holding
+    /// this gadget is selected.
+    fn emit_ne_gadget(&mut self, l: &Ident, r: &Ident, gate: Option<&Ident>) -> Ident {
+        let d = self.emit_sub(l, r);
+        let t = self.emit_free_bool();
+        // Booleanity, under the resolved gate (not `t`'s own branch gate).
+        let sq = self.fresh();
+        self.tokens
+            .extend(quote! { let #sq = __axiom_builder.mul(#t, #t); });
+        match gate {
+            Some(g) => {
+                let diff = self.emit_sub(&sq, &t);
+                let gated = self.fresh();
+                self.tokens
+                    .extend(quote! { let #gated = __axiom_builder.mul(#g, #diff); });
+                self.emit_zero(&gated);
+            }
+            None => self.emit_eq(&sq, &t),
+        }
+        // Arm 1: t = 1 ⇒ d ≥ 1.
+        let td = self.fresh();
+        self.tokens
+            .extend(quote! { let #td = __axiom_builder.mul(#t, #d); });
+        let arm1 = self.emit_sub(&td, &t);
+        self.emit_gated_non_neg(&arm1, gate);
+        // Arm 2: t = 0 ⇒ d ≤ −1, via s·(d+1) − (d+1) ≥ 0.
+        let one = self.emit_const(1);
+        let d1 = self.emit_add(&d, &one);
+        let td1 = self.fresh();
+        self.tokens
+            .extend(quote! { let #td1 = __axiom_builder.mul(#t, #d1); });
+        let arm2 = self.emit_sub(&td1, &d1);
+        self.emit_gated_non_neg(&arm2, gate);
+        t
+    }
+
+    /// `e ≥ 0`, multiplied by `gate` first when one is active.
+    fn emit_gated_non_neg(&mut self, e: &Ident, gate: Option<&Ident>) {
+        match gate {
+            Some(g) => {
+                let gated = self.fresh();
+                self.tokens
+                    .extend(quote! { let #gated = __axiom_builder.mul(#g, #e); });
+                self.emit_nonneg(&gated);
+            }
+            None => self.emit_nonneg(e),
+        }
+    }
+
+    /// Gated `e == 0`.
+    fn emit_gated_zero(&mut self, e: &Ident, gate: Option<&Ident>) {
+        match gate {
+            Some(g) => {
+                let gated = self.fresh();
+                self.tokens
+                    .extend(quote! { let #gated = __axiom_builder.mul(#g, #e); });
+                self.emit_zero(&gated);
+            }
+            None => self.emit_zero(e),
+        }
+    }
+
+    /// Pins the selector `s` (1 = condition true) to the truth of a
+    /// comparison, under the enclosing gate.
+    ///
+    /// * `l ≥ r` (also `>`, `<`, `≤` after the ±1 adjustment): `s·d ≥ 0`
+    ///   forces `s = 1 ⇒ d ≥ 0`, and `s·(d+1) − (d+1) ≥ 0` forces
+    ///   `s = 0 ⇒ d ≤ −1`; together `s` is *forced* to the side the
+    ///   difference lies on.
+    /// * `l == r`: `s·d == 0` forces `s = 1 ⇒ d = 0`, and the `!=` gadget
+    ///   under the gate `(1−s)` forces `s = 0 ⇒ d ≠ 0`.
+    /// * `l != r`: the mirror image.
+    fn lower_condition(&mut self, cond: &Expr, s: &Ident) -> syn::Result<()> {
+        let bin = match cond {
+            Expr::Paren(paren) => match &*paren.expr {
+                Expr::Binary(bin) => bin,
+                _ => {
+                    return Err(Error::new(
+                        cond.span(),
+                        "`if` conditions must be comparisons such as `a >= b`",
+                    ))
+                }
+            },
+            Expr::Binary(bin) if is_comparison(bin.op) => bin,
+            _ => {
+                return Err(Error::new(
+                    cond.span(),
+                    "`if` conditions must be comparisons such as `a >= b`",
+                ))
+            }
+        };
+        let l = self.compile_expr(&bin.left)?;
+        let r = self.compile_expr(&bin.right)?;
+        let one = self.emit_const(1);
+        let gate = self.gate.clone();
+        match bin.op {
+            BinOp::Ge(_) | BinOp::Gt(_) | BinOp::Le(_) | BinOp::Lt(_) => {
+                // d is the signed gap that is ≥ 0 exactly when the condition
+                // holds.
+                let d = match bin.op {
+                    BinOp::Ge(_) => self.emit_sub(&l, &r),
+                    BinOp::Gt(_) => {
+                        let raw = self.emit_sub(&l, &r);
+                        self.emit_sub(&raw, &one)
+                    }
+                    BinOp::Le(_) => self.emit_sub(&r, &l),
+                    _ => {
+                        let raw = self.emit_sub(&r, &l);
+                        self.emit_sub(&raw, &one)
+                    }
+                };
+                // s = 1 ⇒ d ≥ 0.
+                let sd = self.fresh();
+                self.tokens
+                    .extend(quote! { let #sd = __axiom_builder.mul(#s, #d); });
+                self.emit_gated_non_neg(&sd, gate.as_ref());
+                // s = 0 ⇒ d ≤ −1: s·(d+1) − (d+1) ≥ 0.
+                let d1 = self.emit_add(&d, &one);
+                let sd1 = self.fresh();
+                self.tokens
+                    .extend(quote! { let #sd1 = __axiom_builder.mul(#s, #d1); });
+                let arm = self.emit_sub(&sd1, &d1);
+                self.emit_gated_non_neg(&arm, gate.as_ref());
+            }
+            BinOp::Eq(_) => {
+                let d = self.emit_sub(&l, &r);
+                let sd = self.fresh();
+                self.tokens
+                    .extend(quote! { let #sd = __axiom_builder.mul(#s, #d); });
+                self.emit_gated_zero(&sd, gate.as_ref());
+                // s = 0 ⇒ d ≠ 0: the != gadget under the gate (1−s).
+                let not_s = self.emit_sub(&one, s);
+                let gate2 = self.gate_mul(&not_s);
+                let _selector = self.emit_ne_gadget(&l, &r, Some(&gate2));
+            }
+            BinOp::Ne(_) => {
+                let d = self.emit_sub(&l, &r);
+                // s = 0 ⇒ d = 0.
+                let not_s = self.emit_sub(&one, s);
+                let nsd = self.fresh();
+                self.tokens
+                    .extend(quote! { let #nsd = __axiom_builder.mul(#not_s, #d); });
+                self.emit_gated_zero(&nsd, gate.as_ref());
+                // s = 1 ⇒ d ≠ 0: the != gadget under the gate s.
+                let gate2 = self.gate_mul(s);
+                let _selector = self.emit_ne_gadget(&l, &r, Some(&gate2));
+            }
+            _ => unreachable!("is_comparison filtered the operator"),
+        }
+        Ok(())
+    }
+
+    /// Lowers an `if` statement: a selector pinned to the condition's truth,
+    /// then each branch's constraints re-stated under the branch's selector
+    /// gate (`s` for the then-branch, `1−s` for the else-branch). Constraints
+    /// in an unselected branch become identically-zero vacuities, and Rust
+    /// block scoping is enforced by snapshotting the name scopes.
+    fn lower_if_stmt(&mut self, expr_if: &ExprIf) -> syn::Result<()> {
+        let s = self.emit_free_bool();
+        self.emit_booleanity(&s);
+        self.lower_condition(&expr_if.cond, &s)?;
+
+        let then_gate = self.gate_mul(&s);
+        self.scoped(|this| {
+            let saved = this.gate.clone();
+            this.gate = Some(then_gate);
+            let result = this.lower_block(&expr_if.then_branch);
+            this.gate = saved;
+            result
+        })?;
+        if let Some((_, else_expr)) = &expr_if.else_branch {
+            let else_block = match &**else_expr {
+                Expr::Block(expr_block) => &expr_block.block,
+                other => {
+                    return Err(Error::new(
+                        other.span(),
+                        "the `else` branch of an `if` statement must be a block",
+                    ))
+                }
+            };
+            let one = self.emit_const(1);
+            let not_s = self.emit_sub(&one, &s);
+            let else_gate = self.gate_mul(&not_s);
+            self.scoped(|this| {
+                let saved = this.gate.clone();
+                this.gate = Some(else_gate);
+                let result = this.lower_block(else_block);
+                this.gate = saved;
+                result
+            })?;
+        }
+        Ok(())
+    }
+
+    /// Lowers a bounded `for i in a..b` (or `a..=b`) loop by unrolling: the
+    /// loop variable is a per-iteration constant, and the body lowers once
+    /// per iteration in a fresh name scope. Bounds must be integer literals
+    /// — a fixed circuit cannot depend on a runtime trip count.
+    fn lower_for(&mut self, for_: &ExprForLoop) -> syn::Result<()> {
+        // `for _ in ..` is the discard pattern; bind it under its own name,
+        // which no expression can reference.
+        let var = match &*for_.pat {
+            Pat::Wild(_) => Ident::new("_", for_.pat.span()),
+            pat => pattern_ident(pat)?,
+        };
+        let Expr::Range(range) = &*for_.expr else {
+            return Err(Error::new(
+                for_.expr.span(),
+                "`for` loops must iterate over a literal integer range (`for i in a..b`)",
+            ));
+        };
+        let start = match &range.start {
+            None => 0,
+            Some(e) => literal_value(e)?,
+        };
+        let end = literal_value(range.end.as_ref().ok_or_else(|| {
+            Error::new(
+                for_.expr.span(),
+                "an unbounded range cannot lower to a fixed circuit; use a literal `a..b`",
+            )
+        })?)?;
+        let count = if matches!(range.limits, syn::RangeLimits::Closed(_)) {
+            end.checked_sub(start).and_then(|d| d.checked_add(1))
+        } else {
+            end.checked_sub(start)
+        };
+        let Some(count) = count else {
+            return Err(Error::new(
+                for_.expr.span(),
+                "loop bounds overflow the IR's scalar model",
+            ));
+        };
+        // A reversed range iterates zero times in Rust; unrolling zero
+        // iterations is the faithful lowering.
+        let count = count.max(0);
+        if count > MAX_LOOP_UNROLL {
+            return Err(Error::new(
+                for_.expr.span(),
+                format!(
+                    "this loop unrolls to {count} iterations; #[zk_provable] caps unrolling at \
+                     {MAX_LOOP_UNROLL} to keep circuits fixed-size and compile times sane"
+                ),
+            ));
+        }
+        let name = var.to_string();
+        for iteration in 0..count {
+            let value = start + iteration;
+            // The counter is a per-iteration constant under a fresh generated
+            // name, and the source name is renamed to it for exactly this
+            // body. Nothing outside the loop can capture the counter, and
+            // (unlike a Rust block) accumulator assignments inside the body
+            // stay visible to the next iteration — `let mut acc` accumulates
+            // the way the source reads.
+            let counter = self.fresh();
+            self.tokens.extend(quote! {
+                let #counter = __axiom_builder.constant(#value);
+            });
+            let counter_handle = counter.clone();
+            self.scoped(|this| {
+                this.bound.insert(name.clone());
+                this.types.insert(name.clone(), IntSpec::U64);
+                this.renames.insert(name.clone(), counter_handle);
+                this.lower_block(&for_.body)
+            })?;
+        }
+        Ok(())
     }
 
     fn lower_local(&mut self, local: &Local) -> syn::Result<()> {
@@ -576,16 +949,16 @@ impl Lowerer {
             ));
         }
         let ident = pattern_ident(&local.pat)?;
-        if let Pat::Ident(pi) = &local.pat {
-            if pi.mutability.is_some() {
-                return Err(Error::new(
-                    pi.mutability.span(),
-                    "`mut` bindings are not supported; #[zk_provable] functions are a pure expression DAG",
-                ));
-            }
-        }
         let handle = self.compile_expr(&init.expr)?;
         let name = ident.to_string();
+        // `let mut` declares an SSA accumulator: assignments (`acc = …`,
+        // `acc += …`) rebind it to a fresh value. Each rebind is a generated
+        // shadow, so the DAG stays pure while the source reads naturally.
+        if let Pat::Ident(pi) = &local.pat {
+            if pi.mutability.is_some() {
+                self.mut_names.insert(name.clone());
+            }
+        }
         if !self.bound.insert(name.clone()) {
             return Err(Error::new(
                 ident.span(),
@@ -630,6 +1003,8 @@ impl Lowerer {
         match expr {
             Expr::Return(ret) => self.lower_return(ret, is_last),
             Expr::Macro(m) => self.lower_macro(&m.mac),
+            Expr::Assign(assign) => self.lower_assignment(assign),
+            Expr::Binary(bin) if is_compound_assign(bin.op) => self.lower_compound_assign(bin),
             Expr::If(_) | Expr::Match(_) | Expr::ForLoop(_) | Expr::While(_) | Expr::Loop(_) => {
                 Err(Error::new(
                     expr.span(),
@@ -685,6 +1060,71 @@ impl Lowerer {
                 "this function must return a value of its declared type",
             )),
         }
+    }
+
+    /// Lowers `name = expr;` / `name += expr;` / `-=` / `*=` for a `let mut`
+    /// accumulator: the rebinding becomes a fresh SSA value (a generated
+    /// shadow of the source name), so the source reads like mutation while
+    /// the circuit stays a pure DAG.
+    fn lower_assignment(&mut self, assign: &ExprAssign) -> syn::Result<()> {
+        let Expr::Path(path) = &*assign.left else {
+            return Err(Error::new(
+                assign.left.span(),
+                "only a simple named variable can be assigned in #[zk_provable] functions",
+            ));
+        };
+        let ident = path.path.segments[0].ident.clone();
+        let name = ident.to_string();
+        if !self.mut_names.contains(&name) {
+            return Err(Error::new(
+                assign.span(),
+                format!(
+                    "`{name}` is not declared `let mut`; only `let mut` accumulators can be reassigned (each assignment becomes a fresh value in the circuit)"
+                ),
+            ));
+        }
+        let rhs = self.compile_expr(&assign.right)?;
+        // A generated shadow: the source reads like mutation, the circuit
+        // sees a fresh SSA value.
+        self.tokens.extend(quote! { let #ident = #rhs; });
+        Ok(())
+    }
+
+    /// Lowers `name += expr;` / `-=` / `*=` (syn parses compound assignments
+    /// as binary expressions) onto a `let mut` accumulator.
+    fn lower_compound_assign(&mut self, bin: &ExprBinary) -> syn::Result<()> {
+        let Expr::Path(path) = &*bin.left else {
+            return Err(Error::new(
+                bin.left.span(),
+                "only a simple named variable can be assigned in #[zk_provable] functions",
+            ));
+        };
+        let ident = path.path.segments[0].ident.clone();
+        let name = ident.to_string();
+        if !self.mut_names.contains(&name) {
+            return Err(Error::new(
+                bin.span(),
+                format!(
+                    "`{name}` is not declared `let mut`; only `let mut` accumulators can be reassigned (each assignment becomes a fresh value in the circuit)"
+                ),
+            ));
+        }
+        let rhs = self.compile_expr(&bin.right)?;
+        let method = match bin.op {
+            BinOp::AddAssign(_) => "add",
+            BinOp::SubAssign(_) => "sub",
+            BinOp::MulAssign(_) => "mul",
+            _ => {
+                return Err(Error::new(
+                    bin.span(),
+                    "only `=`, `+=`, `-=` and `*=` are supported in #[zk_provable] functions",
+                ));
+            }
+        };
+        let method = Ident::new(method, Span::call_site());
+        self.tokens
+            .extend(quote! { let #ident = __axiom_builder.#method(#ident, #rhs); });
+        Ok(())
     }
 
     fn bind_output(&mut self, handle: &Ident, span: Span) -> syn::Result<()> {
@@ -786,10 +1226,12 @@ impl Lowerer {
             }
             BinOp::Eq(_) => self.emit_eq(&l, &r),
             BinOp::Ne(_) => {
-                return Err(Error::new(
-                    bin.span(),
-                    "`!=` cannot be expressed as an arithmetic constraint; use a range check or equality instead",
-                ));
+                // The inequality gadget: a free selector bit forced onto one
+                // side of the difference, so a satisfying assignment exists
+                // iff the operands really differ. Sound over the integers:
+                // both arms are range checks, and `l == r` satisfies neither.
+                let gate = self.gate.clone();
+                let _selector = self.emit_ne_gadget(&l, &r, gate.as_ref());
             }
             BinOp::Or(_) => {
                 return Err(Error::new(
@@ -829,7 +1271,12 @@ impl Lowerer {
                         ),
                     ));
                 }
-                Ok(ident)
+                // A `for` counter maps to its per-iteration generated local.
+                Ok(self
+                    .renames
+                    .get(&ident.to_string())
+                    .cloned()
+                    .unwrap_or(ident))
             }
             Expr::Lit(lit) => match &lit.lit {
                 Lit::Int(int) => {
@@ -950,10 +1397,46 @@ impl Lowerer {
                 cast.span(),
                 "casts are not supported in #[zk_provable] functions; use matching integer types",
             )),
-            Expr::If(_) | Expr::Match(_) => Err(Error::new(
-                expr.span(),
-                "conditional logic is not supported in #[zk_provable] functions; it cannot be represented as straight-line arithmetic constraints",
-            )),
+            Expr::If(if_expr) => {
+                // `let x = if c { a } else { b };` — a multiplexed value:
+                // `b + s·(a − b)` with `s` a selector pinned to the truth of
+                // `c`. Both branch values are computed unconditionally (they
+                // are pure arithmetic); only the *selection* is conditional.
+                let Some((_, else_expr)) = &if_expr.else_branch else {
+                    return Err(Error::new(
+                        if_expr.span(),
+                        "an `if` expression needs an `else` branch; a circuit computes both arms and selects, so there is no fall-through",
+                    ));
+                };
+                let Some(a) = block_tail_expr(&if_expr.then_branch) else {
+                    return Err(Error::new(
+                        if_expr.then_branch.span(),
+                        "an `if` expression's branches must be single arithmetic expressions",
+                    ));
+                };
+                let b = match &**else_expr {
+                    Expr::Block(expr_block) => {
+                        block_tail_expr(&expr_block.block).ok_or_else(|| {
+                            Error::new(
+                                else_expr.span(),
+                                "an `if` expression's `else` branch must be a single arithmetic expression",
+                            )
+                        })?
+                    }
+                    other => other,
+                };
+                let s = self.emit_free_bool();
+                self.emit_booleanity(&s);
+                self.lower_condition(&if_expr.cond, &s)?;
+                let a_handle = self.compile_expr(a)?;
+                let b_handle = self.compile_expr(b)?;
+                let diff = self.emit_sub(&a_handle, &b_handle);
+                let selected = self.fresh();
+                self.tokens
+                    .extend(quote! { let #selected = __axiom_builder.mul(#s, #diff); });
+                let t = self.emit_add(&b_handle, &selected);
+                Ok(t)
+            }
             Expr::ForLoop(_) | Expr::While(_) | Expr::Loop(_) => Err(Error::new(
                 expr.span(),
                 "loops are not supported in #[zk_provable] functions (dynamic bounds cannot be lowered to a fixed circuit)",
@@ -1016,6 +1499,18 @@ impl Lowerer {
         t
     }
 
+    fn emit_add(&mut self, l: &Ident, r: &Ident) -> Ident {
+        let t = self.fresh();
+        self.tokens
+            .extend(quote! { let #t = __axiom_builder.add(#l, #r); });
+        t
+    }
+
+    fn emit_zero(&mut self, e: &Ident) {
+        self.tokens
+            .extend(quote! { __axiom_builder.constrain_zero(#e); });
+    }
+
     fn emit_eq(&mut self, l: &Ident, r: &Ident) {
         self.tokens
             .extend(quote! { __axiom_builder.constrain_eq(#l, #r); });
@@ -1063,6 +1558,63 @@ fn pattern_ident(pat: &Pat) -> syn::Result<Ident> {
             pat.span(),
             "unsupported pattern; #[zk_provable] functions only bind simple named variables",
         )),
+    }
+}
+
+/// Whether a binary operator is one of the compound assignments (`+=`, `-=`,
+/// `*=`) an accumulator may use.
+fn is_compound_assign(op: BinOp) -> bool {
+    matches!(op, BinOp::AddAssign(_) | BinOp::SubAssign(_) | BinOp::MulAssign(_))
+}
+
+/// Whether a binary operator is one of the six comparisons an `if` condition
+/// may use.
+fn is_comparison(op: BinOp) -> bool {
+    matches!(
+        op,
+        BinOp::Ge(_)
+            | BinOp::Gt(_)
+            | BinOp::Le(_)
+            | BinOp::Lt(_)
+            | BinOp::Eq(_)
+            | BinOp::Ne(_)
+    )
+}
+
+/// The integer value of a (possibly negated) integer literal, for loop bounds.
+fn literal_value(expr: &Expr) -> syn::Result<i64> {
+    match expr {
+        Expr::Lit(lit) => match &lit.lit {
+            Lit::Int(int) => int.base10_parse::<i64>().map_err(|_| {
+                Error::new(
+                    int.span(),
+                    "integer literal does not fit the IR's scalar model (i64)",
+                )
+            }),
+            other => Err(Error::new(
+                other.span(),
+                "only integer literals may bound a `for` loop",
+            )),
+        },
+        Expr::Unary(unary) if matches!(unary.op, UnOp::Neg(_)) => {
+            let inner = literal_value(&unary.expr)?;
+            inner.checked_neg().ok_or_else(|| {
+                Error::new(unary.span(), "integer literal does not fit the IR's scalar model")
+            })
+        }
+        Expr::Paren(paren) => literal_value(&paren.expr),
+        _ => Err(Error::new(
+            expr.span(),
+            "`for` bounds must be integer literals; a fixed circuit cannot depend on a runtime trip count",
+        )),
+    }
+}
+
+/// The single tail expression of a block (`{ expr }`), if that is all it is.
+fn block_tail_expr(block: &Block) -> Option<&Expr> {
+    match block.stmts.as_slice() {
+        [Stmt::Expr(expr, None)] => Some(expr),
+        _ => None,
     }
 }
 

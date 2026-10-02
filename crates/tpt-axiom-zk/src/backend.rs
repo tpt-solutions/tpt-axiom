@@ -81,8 +81,12 @@ pub trait ZkBackend {
 
     /// Produce a proof for an assignment of the circuit's inputs.
     ///
-    /// `public` and `secret` hold the values of `ir.public_inputs` and
-    /// `ir.secret_inputs` respectively, in declaration order.
+    /// `public` holds the values of `ir.public_inputs`, in declaration order.
+    /// `secret` holds the values of `ir.secret_inputs`, in declaration order,
+    /// followed by the circuit's solved free (aux) witness values — for a
+    /// circuit without free variables, exactly the named secrets. The
+    /// [`driver`](crate::driver) produces that shape; `witness::check` and
+    /// both shipping backends enforce it.
     ///
     /// # Errors
     /// Backend-specific failure while synthesizing or proving; implementations

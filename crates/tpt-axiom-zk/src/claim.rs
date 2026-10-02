@@ -79,6 +79,13 @@ pub fn ir_digest(ir: &ConstraintSystem) -> [u8; 32] {
         }]);
         h.update(var.int_type.bits.to_le_bytes());
         h.update([u8::from(var.int_type.signed)]);
+        // Free (aux) variables change what the circuit proves (their selector
+        // gadgets do), and their absence does not: hash the flag so a circuit
+        // and its de-gadgeted twin never share a digest.
+        h.update([match var.aux {
+            None => 0,
+            Some(tpt_axiom_ir::AuxKind::Bool) => 1,
+        }]);
     }
     feed_usize(&mut h, ir.exprs.len());
     for expr in &ir.exprs {
@@ -313,6 +320,10 @@ mod tests {
         // So does a declared type.
         let mut other = sample_ir();
         other.variables[0].int_type = tpt_axiom_ir::IntType::U8;
+        assert_ne!(ir_digest(&ir), ir_digest(&other));
+        // So does promoting a variable to a free (aux) witness.
+        let mut other = sample_ir();
+        other.variables[1].aux = Some(tpt_axiom_ir::AuxKind::Bool);
         assert_ne!(ir_digest(&ir), ir_digest(&other));
         // So does an otherwise-unused change to an expression node.
         let mut other = sample_ir();

@@ -144,15 +144,35 @@ impl NamedWitness {
             }
         }
         // Anything left over names something this circuit does not declare.
+        // Free (aux) variables count as undeclared too: they are solved
+        // internally, never supplied, so a name that resolves to one is just
+        // as much a mistake as a typo.
         for (name, _) in &self.entries {
-            if ir.variable_id(name).is_none() {
+            let known_free = ir
+                .variable_id(name)
+                .and_then(|id| match ir.exprs.get(id) {
+                    Some(Expr::Var(var)) => ir.variables.get(*var).map(|info| info.aux.is_some()),
+                    _ => None,
+                })
+                .unwrap_or(false);
+            if known_free || ir.variable_id(name).is_none() {
                 return Err(NamedWitnessError::UnknownInput { name: name.clone() });
             }
         }
-        Ok(WitnessValues { public, secret })
+        Ok(WitnessValues {
+            public,
+            secret,
+            aux: Vec::new(),
+        })
     }
 
     /// Resolves against `ir` and validates the constraints in one step.
+    ///
+    /// For a circuit with free (aux) witness variables — the selector bits of
+    /// `!=`/`if` gadgets — this first *solves* them
+    /// ([`witness::solve_free_variables`](crate::witness::solve_free_variables)),
+    /// so the prover never sees them; an unsolvable assignment (a false `!=`
+    /// claim) is a constraint error.
     ///
     /// # Errors
     ///
@@ -162,7 +182,11 @@ impl NamedWitness {
         &self,
         ir: &ConstraintSystem,
     ) -> Result<WitnessValues, NamedWitnessError> {
-        let values = self.resolve(ir)?;
+        let mut values = self.resolve(ir)?;
+        if ir.num_free() > 0 {
+            values.aux = crate::witness::solve_free_variables(ir, &values.public, &values.secret)
+                .map_err(|e| NamedWitnessError::Constraint(e.to_string()))?;
+        }
         values
             .check(ir)
             .map_err(|e| NamedWitnessError::Constraint(e.to_string()))?;
@@ -172,13 +196,18 @@ impl NamedWitness {
 
 /// A resolved witness: positional public and secret slices in IR declaration
 /// order, exactly the shape [`witness::check`](crate::witness::check) and
-/// [`ZkBackend::prove`](crate::ZkBackend::prove) consume.
+/// [`ZkBackend::prove`](crate::ZkBackend::prove) consume. Any solved free
+/// (aux) witness values ride alongside; [`Self::secret_with_aux`] appends
+/// them in the tail order the backend expects.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct WitnessValues {
     /// Public inputs, in declaration order.
     public: Vec<Scalar>,
     /// Secret inputs, in declaration order.
     secret: Vec<Scalar>,
+    /// Solved free (aux) witness values, in aux declaration order; empty for
+    /// circuits without free variables.
+    aux: Vec<Scalar>,
 }
 
 impl WitnessValues {
@@ -188,18 +217,37 @@ impl WitnessValues {
         &self.public
     }
 
-    /// The secret inputs, in the IR's declaration order.
+    /// The secret inputs, in the IR's declaration order (free/aux values not
+    /// included — see [`Self::secret_with_aux`]).
     #[must_use]
     pub fn secret(&self) -> &[Scalar] {
         &self.secret
     }
 
+    /// The secret inputs followed by the solved free (aux) witness values —
+    /// the exact secret-slice shape [`witness::check`](crate::witness::check)
+    /// and [`ZkBackend::prove`](crate::ZkBackend::prove) expect.
+    #[must_use]
+    pub fn secret_with_aux(&self) -> Vec<Scalar> {
+        let mut out = Vec::with_capacity(self.secret.len() + self.aux.len());
+        out.extend_from_slice(&self.secret);
+        out.extend_from_slice(&self.aux);
+        out
+    }
+
+    /// The solved free (aux) witness values (empty when the circuit has none).
+    #[must_use]
+    pub fn aux(&self) -> &[Scalar] {
+        &self.aux
+    }
+
     /// Validates these values against `ir`'s constraints and declared types.
     ///
     /// # Errors
-    /// As [`witness::check`](crate::witness::check).
+    /// As [`witness::check`](crate::witness::check), with the aux tail
+    /// appended automatically.
     pub fn check(&self, ir: &ConstraintSystem) -> Result<(), crate::witness::WitnessError> {
-        crate::witness::check(ir, &self.public, &self.secret)
+        crate::witness::check(ir, &self.public, &self.secret_with_aux())
     }
 }
 
@@ -432,6 +480,53 @@ mod tests {
         assert!(witness.resolve(&ir).is_ok());
         assert!(matches!(
             witness.resolve_and_check(&ir),
+            Err(NamedWitnessError::Constraint(_))
+        ));
+    }
+
+    #[test]
+    fn free_variables_are_solved_not_supplied() {
+        // The exact IR `assert!(l != r)` lowers to (see conformance).
+        let mut b = ConstraintSystemBuilder::new("ne");
+        let l = b.public_input("l");
+        let r = b.secret_input("r");
+        let d = b.sub(l, r);
+        let s = b.free_bool("__axiom_free0");
+        let sd = b.mul(s, d);
+        let ss = b.mul(s, s);
+        b.constrain_eq(ss, s);
+        let arm1 = b.sub(sd, s);
+        b.constrain_non_negative(arm1);
+        let one = b.constant(1);
+        let d1 = b.add(d, one);
+        let sd1 = b.mul(s, d1);
+        let arm2 = b.sub(sd1, d1);
+        b.constrain_non_negative(arm2);
+        let ir = b.build();
+
+        // The caller names only the declared inputs; the selector is solved.
+        let witness = NamedWitness::new().with("l", 10).with("r", 3);
+        let values = witness.resolve_and_check(&ir).expect("solved");
+        assert_eq!(values.aux(), &[1]);
+        assert_eq!(values.secret(), &[3], "named secrets stay separate");
+        assert_eq!(values.secret_with_aux(), &[3, 1]);
+
+        // Naming the selector directly is rejected: it is not an input.
+        let interloper = NamedWitness::new()
+            .with("l", 10)
+            .with("r", 3)
+            .with("__axiom_free0", 1);
+        assert_eq!(
+            interloper.resolve(&ir),
+            Err(NamedWitnessError::UnknownInput {
+                name: String::from("__axiom_free0"),
+            })
+        );
+
+        // A false inequality does not resolve into a proof.
+        let false_claim = NamedWitness::new().with("l", 7).with("r", 7);
+        assert!(matches!(
+            false_claim.resolve_and_check(&ir),
             Err(NamedWitnessError::Constraint(_))
         ));
     }

@@ -9,7 +9,9 @@
 //! * `weighted_sum` - a public output (`return`) computed from a secret
 //!   multiplier;
 //! * `bounds_check` - three `NonNegative` comparisons over signed inputs,
-//!   including negative witnesses.
+//!   including negative witnesses;
+//! * `not_equal` - the free-witness gadget the macro emits for `assert!(a !=
+//!   b)`, exercising the solved-selector tail convention.
 //!
 //! Each driver covers the happy path plus the rejection paths: tampered
 //! public inputs must fail verification, and violating secret witnesses must
@@ -69,6 +71,31 @@ pub fn bounds_check_ir() -> ConstraintSystem {
     let lt = b.sub(hi_plus, x);
     let strict = b.sub(lt, one);
     b.constrain_non_negative(strict);
+    b.build()
+}
+
+/// The IR for `not_equal`: exactly what `#[zk_provable]` emits for
+/// `assert!(l != r)` — a free boolean selector `s` with a booleanity
+/// constraint and the two gated range checks `s = 1 ⇒ l ≥ r + 1`,
+/// `s = 0 ⇒ l ≤ r − 1`. Exercises the free-witness tail convention end to
+/// end: the aux value rides the secret slice after the named secrets.
+#[must_use]
+pub fn not_equal_ir() -> ConstraintSystem {
+    let mut b = ConstraintSystemBuilder::new("not_equal");
+    let l = b.public_input("l");
+    let r = b.secret_input("r");
+    let d = b.sub(l, r);
+    let s = b.free_bool("__axiom_free0");
+    let sd = b.mul(s, d);
+    let ss = b.mul(s, s);
+    b.constrain_eq(ss, s); // booleanity
+    let arm1 = b.sub(sd, s); // s = 1 ⇒ d ≥ 1
+    b.constrain_non_negative(arm1);
+    let one = b.constant(1);
+    let d1 = b.add(d, one);
+    let sd1 = b.mul(s, d1);
+    let arm2 = b.sub(sd1, d1); // s = 0 ⇒ d ≤ −1
+    b.constrain_non_negative(arm2);
     b.build()
 }
 
@@ -172,6 +199,50 @@ pub fn run_bounds_check<B: ZkBackend>(backend: &B) {
     assert_prove_rejected(backend, &circuit, &pk, &[-10, 10], &[-11], "bounds below");
 }
 
+/// Runs the full `not_equal` (free-witness gadget) conformance scenario on
+/// `backend`.
+///
+/// The caller supplies the solved selector bit as the secret-slice tail (in
+/// production the [`driver`](crate::driver) solves it); a positive and a
+/// negative difference exercise both arms of the disjunction.
+///
+/// # Panics
+/// Panics (with a `[context]` label) on any unexpected backend verdict.
+pub fn run_not_equal<B: ZkBackend>(backend: &B) {
+    let ir = not_equal_ir();
+    let circuit = match backend.compile(&ir) {
+        Ok(c) => c,
+        Err(e) => fail("ne", "compile", e),
+    };
+    let (pk, vk) = match backend.generate_keys(&ir, &[]) {
+        Ok(keys) => keys,
+        Err(e) => fail("ne", "keygen", e),
+    };
+
+    // Happy path, positive arm: 10 ≠ 3 with selector s = 1.
+    let proof = match backend.prove(&circuit, &pk, &[10], &[3, 1]) {
+        Ok(p) => p,
+        Err(e) => fail("ne pos", "prove", e),
+    };
+    assert_verify(backend, &vk, &[10], &proof, true, "ne pos");
+    // Negative arm: −5 < 9 with selector s = 0.
+    let neg = match backend.prove(&circuit, &pk, &[-5], &[9, 0]) {
+        Ok(p) => p,
+        Err(e) => fail("ne neg", "prove", e),
+    };
+    assert_verify(backend, &vk, &[-5], &neg, true, "ne neg");
+    // A proof of −5 ≠ 9 says nothing about other publics.
+    assert_verify(backend, &vk, &[9], &neg, false, "ne tampered");
+
+    // l == r: neither selector value satisfies the range checks, in either
+    // arm — and a wrong selector for a true difference is rejected too.
+    assert_prove_rejected(backend, &circuit, &pk, &[7], &[7, 0], "ne equal s0");
+    assert_prove_rejected(backend, &circuit, &pk, &[7], &[7, 1], "ne equal s1");
+    assert_prove_rejected(backend, &circuit, &pk, &[10], &[3, 0], "ne wrong selector");
+    // A non-binary selector violates the variable's declared 1-bit range.
+    assert_prove_rejected(backend, &circuit, &pk, &[10], &[3, 2], "ne non-binary");
+}
+
 /// Runs every conformance scenario on `backend`.
 ///
 /// # Panics
@@ -180,6 +251,7 @@ pub fn run_all<B: ZkBackend>(backend: &B) {
     run_balance_transfer(backend);
     run_weighted_sum(backend);
     run_bounds_check(backend);
+    run_not_equal(backend);
 }
 
 fn assert_verify<B: ZkBackend>(

@@ -16,6 +16,13 @@
 //! * every `NonNegative` value must lie in `[0, 2^range_bits)` — the width of
 //!   the backend's range-check chain (64 by default, see
 //!   [`check_with_range`]).
+//!
+//! Free (aux) witness variables — the selector bits of disjunctive gadgets —
+//! ride the *tail* of the secret slice, after the named secrets, in
+//! declaration order. Callers do not produce them:
+//! [`solve_free_variables`] searches the domain for a satisfying assignment
+//! (the [`crate::driver`] calls it automatically), and the arity rule below
+//! refuses a secret slice that is missing the tail.
 
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -25,6 +32,12 @@ use tpt_axiom_ir::{Constraint, ConstraintSystem, Expr};
 /// `NonNegative` values are provable in `[0, 2^range_bits)`; this is the
 /// default chain width every backend uses unless configured otherwise.
 pub const DEFAULT_RANGE_BITS: u32 = 64;
+
+/// The most free (aux) witness variables [`solve_free_variables`] will search.
+///
+/// Each adds a factor of two; 16 keeps the worst case at 65 536 cheap exact
+/// evaluations while leaving room for deeply nested conditional circuits.
+pub const MAX_FREE_VARIABLES: usize = 16;
 
 /// Witness-shape or constraint-satisfaction failures.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -69,6 +82,19 @@ pub enum WitnessError {
         /// Index into `ConstraintSystem::exprs`.
         index: usize,
     },
+    /// The circuit declares free (aux) witness variables and no assignment of
+    /// them satisfies the constraints — for a `!=` gadget, that the two
+    /// operands really are equal, so the claim is false.
+    FreeVariablesUnsatisfiable {
+        /// How many free variables were searched.
+        count: usize,
+    },
+    /// The circuit declares more free (aux) witness variables than the solver
+    /// will search ([`MAX_FREE_VARIABLES`]).
+    TooManyFreeVariables {
+        /// How many the circuit declares.
+        count: usize,
+    },
 }
 
 impl core::fmt::Display for WitnessError {
@@ -99,6 +125,16 @@ impl core::fmt::Display for WitnessError {
                     "expression #{index} overflows the IR's i128 evaluation model"
                 )
             }
+            Self::FreeVariablesUnsatisfiable { count } => write!(
+                f,
+                "no assignment of the circuit's {count} free witness variable(s) satisfies the \
+                 constraints (for a `!=` or `if` gadget this means the claim itself is false)"
+            ),
+            Self::TooManyFreeVariables { count } => write!(
+                f,
+                "the circuit declares {count} free witness variables; the solver searches at \
+                 most {MAX_FREE_VARIABLES}"
+            ),
         }
     }
 }
@@ -145,10 +181,13 @@ pub fn check_with_range(
             got: public.len(),
         });
     }
-    if secret.len() != ir.secret_inputs.len() {
+    // A circuit with free (aux) witness variables expects them appended after
+    // the named secrets — see [`solve_free_variables`].
+    let expected_secret = ir.secret_inputs.len() + ir.num_free();
+    if secret.len() != expected_secret {
         return Err(WitnessError::Arity {
             kind: "secret",
-            expected: ir.secret_inputs.len(),
+            expected: expected_secret,
             got: secret.len(),
         });
     }
@@ -205,6 +244,82 @@ pub fn check_with_range(
         }
     }
     Ok(())
+}
+
+/// Searches for an assignment of the circuit's free (aux) witness variables
+/// that satisfies every constraint, and returns it in the tail-slice order
+/// the backends expect (appended after the named secrets).
+///
+/// Free variables are the selector bits of disjunctive gadgets (`!=`, `if`);
+/// they are not part of the caller-facing witness API. The search is
+/// exhaustive over their domains — a `Bool` variable contributes the
+/// candidates `0` and `1` — in ascending lexicographic order, so the result
+/// is deterministic. `public` and `secret` hold exactly the *named* inputs.
+///
+/// # Errors
+/// [`WitnessError::TooManyFreeVariables`] past [`MAX_FREE_VARIABLES`];
+/// [`WitnessError::FreeVariablesUnsatisfiable`] when no assignment works
+/// (which for a `!=` gadget means the claimed inequality is false); the
+/// arity/overflow errors `check` reports when even the named values are
+/// unusable.
+pub fn solve_free_variables(
+    ir: &ConstraintSystem,
+    public: &[i64],
+    secret: &[i64],
+) -> Result<Vec<i64>, WitnessError> {
+    let free = ir.free_variables();
+    let count = free.len();
+    if count == 0 {
+        return Ok(Vec::new());
+    }
+    if count > MAX_FREE_VARIABLES {
+        return Err(WitnessError::TooManyFreeVariables { count });
+    }
+    // Ascending lexicographic search over the per-variable domains: candidate
+    // `i` assigns bit `slot` of `i` to free variable `slot`. Every free
+    // variable is currently a `Bool`; a future domain kind would append its
+    // own candidates here.
+    for search_index in 0..(1usize << count) {
+        let candidate: Vec<i64> = (0..count)
+            .map(|slot| i64::from((search_index >> slot) & 1 == 1))
+            .collect();
+        let mut extended = Vec::with_capacity(secret.len() + count);
+        extended.extend_from_slice(secret);
+        extended.extend_from_slice(&candidate);
+        let values = evaluate_checked(ir, Some(public), Some(&extended))?;
+        if all_constraints_satisfied(ir, &values, DEFAULT_RANGE_BITS) {
+            return Ok(candidate);
+        }
+    }
+    Err(WitnessError::FreeVariablesUnsatisfiable { count })
+}
+
+/// Whether every constraint is satisfied under `values`, with `NonNegative`
+/// values limited to `[0, 2^range_bits)`. Unlike [`check_with_range`] this
+/// collapses every failure into `false`: the solver only wants to know
+/// whether a candidate assignment works.
+fn all_constraints_satisfied(
+    ir: &ConstraintSystem,
+    values: &[Option<i128>],
+    range_bits: u32,
+) -> bool {
+    let range_bits = range_bits.min(64);
+    for constraint in &ir.constraints {
+        let satisfied = match *constraint {
+            Constraint::Zero(e) => values.get(e).copied().flatten() == Some(0),
+            Constraint::Equal(l, r) => {
+                values.get(l).copied().flatten().is_some() && values.get(l) == values.get(r)
+            }
+            Constraint::NonNegative(e) => match values.get(e).copied().flatten() {
+                Some(v) if v >= 0 => v < (1i128 << range_bits),
+                _ => false,
+            },
+        };
+        if !satisfied {
+            return false;
+        }
+    }
+    true
 }
 
 /// Bottom-up exact `i128` evaluation of every expression node, given the
@@ -282,6 +397,12 @@ fn variable_value(
     let public_index = expr.and_then(|e| ir.public_inputs.iter().position(|&p| p == e));
     if let (Some(i), Some(public)) = (public_index, public) {
         return public.get(i).copied();
+    }
+    // Free (aux) variables read the secret slice's tail, after the named
+    // secrets, in declaration order.
+    if ir.variables.get(var).and_then(|info| info.aux).is_some() {
+        let aux_index = ir.free_variables().iter().position(|&v| v == var)?;
+        return secret.and_then(|s| s.get(ir.secret_inputs.len() + aux_index).copied());
     }
     let secret_index = expr.and_then(|e| ir.secret_inputs.iter().position(|&s| s == e));
     match (secret_index, secret) {
@@ -477,6 +598,80 @@ mod tests {
                 index: 0,
                 value: 1i128 << 40,
                 bits: 32,
+            })
+        );
+    }
+
+    /// The IR shape the macro emits for `assert!(l != r)`: a free boolean
+    /// selector `s`, booleanity, and the two gated range checks that force
+    /// `s = 1 ⇒ l ≥ r + 1` and `s = 0 ⇒ l ≤ r − 1`.
+    fn not_equal_ir() -> ConstraintSystem {
+        use tpt_axiom_ir::IntType;
+        let mut b = ConstraintSystemBuilder::new("not_equal");
+        let l = b.public_input_typed("l", IntType::I64);
+        let r = b.secret_input_typed("r", IntType::I64);
+        let d = b.sub(l, r);
+        let s = b.free_bool("__axiom_free0");
+        let sd = b.mul(s, d);
+        let ss = b.mul(s, s);
+        b.constrain_eq(ss, s); // booleanity
+        // s = 1 ⇒ d ≥ 1
+        let arm1 = b.sub(sd, s);
+        b.constrain_non_negative(arm1);
+        // s = 0 ⇒ d ≤ −1: s·(d+1) − d − 1 ≥ 0
+        let one = b.constant(1);
+        let d1 = b.add(d, one);
+        let sd1 = b.mul(s, d1);
+        let arm2 = b.sub(sd1, d1);
+        b.constrain_non_negative(arm2);
+        b.build()
+    }
+
+    #[test]
+    fn free_variables_solve_and_check() {
+        let ir = not_equal_ir();
+        // The named-only slice is refused: the aux tail is missing.
+        assert_eq!(
+            check(&ir, &[10], &[3]),
+            Err(WitnessError::Arity {
+                kind: "secret",
+                expected: 2,
+                got: 1,
+            })
+        );
+        // The solver finds the selector (s = 1: 10 − 3 − 1 ≥ 0).
+        let aux = solve_free_variables(&ir, &[10], &[3]).expect("satisfiable");
+        assert_eq!(aux, [1]);
+        // The tail-slice convention: aux values appended after the secrets.
+        assert!(check(&ir, &[10], &[3, aux[0]]).is_ok());
+    }
+
+    #[test]
+    fn free_variables_unsatisfiable_when_the_claim_is_false() {
+        let ir = not_equal_ir();
+        // l == r: neither selector value can satisfy the range checks.
+        assert_eq!(
+            solve_free_variables(&ir, &[7], &[7]),
+            Err(WitnessError::FreeVariablesUnsatisfiable { count: 1 })
+        );
+    }
+
+    #[test]
+    fn solved_tail_flows_through_evaluation() {
+        let ir = not_equal_ir();
+        // Negative differences select s = 0 and are provable: the s = 0 arm
+        // demands d ≤ −1 exactly.
+        let aux = solve_free_variables(&ir, &[-5], &[9]).expect("satisfiable");
+        assert_eq!(aux, [0]);
+        assert!(check(&ir, &[-5], &[9, 0]).is_ok());
+        // A out-of-domain aux value is rejected by the declared-type check
+        // even before the constraints run.
+        assert_eq!(
+            check(&ir, &[10], &[3, 2]),
+            Err(WitnessError::InputOutOfRange {
+                name: String::from("__axiom_free0"),
+                index: 2,
+                value: 2,
             })
         );
     }

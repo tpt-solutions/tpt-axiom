@@ -221,10 +221,13 @@ impl Halo2Circuit {
                 got: public.len(),
             });
         }
-        if secret.len() != self.ir.secret_inputs.len() {
+        // Free (aux) witness values ride the tail of the secret slice (see
+        // `tpt_axiom_zk::witness::solve_free_variables`).
+        let expected_secret = self.ir.secret_inputs.len() + self.ir.num_free();
+        if secret.len() != expected_secret {
             return Err(WitnessError::Arity {
                 kind: "secret",
-                expected: self.ir.secret_inputs.len(),
+                expected: expected_secret,
                 got: secret.len(),
             });
         }
