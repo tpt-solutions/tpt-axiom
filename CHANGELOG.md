@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Documentation: the mdBook gains a Cookbook chapter (end-to-end recipes for
+  range claims, `!=`, branchy policies, unrolled accumulators, derived-
+  statistic claims, envelope shipping, and failing-prove triage), and
+  ARCHITECTURE.md gains a "Writing a backend" walkthrough of the full
+  `ZkBackend` contract, including the free-witness tail convention and the
+  shared conformance suite.
 - Free-witness gadgets — the IR gains *free (aux) witness variables*
   (`ConstraintSystemBuilder::free_bool`): circuit-internal selector bits that
   are secret-visibility but deliberately not named inputs. The prove driver

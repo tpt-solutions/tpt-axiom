@@ -10,4 +10,5 @@
 - [Zero-knowledge circuits](circuits.md)
     - [Proving backends](backends.md)
 - [Proof envelopes & services](envelopes.md)
+- [Cookbook](cookbook.md)
 - [Honest limits](limits.md)

@@ -1,0 +1,683 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>tpt-axiom</title>
+        <meta name="robots" content="noindex">
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="Probabilistic logic and native zero-knowledge state for Rust">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-1507fa0a.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-41e353be.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">tpt-axiom</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/tpt-solutions/tpt-axiom" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
+<p><code>tpt-axiom</code> brings probabilistic reasoning and zero-knowledge proofs into
+ordinary Rust: uncertain values propagate through <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>
+automatically, plain functions become provable circuits with one attribute,
+and decisions make abstention a first-class outcome.</p>
+<p>Two lines capture the flavor:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let next_pos = pos + vel * dt;     // uncertainty propagates
+assert!(sender_balance &gt;= amount); // becomes a provable constraint
+<span class="boring">}</span></code></pre>
+<blockquote>
+<p><strong>This crate has not been independently audited.</strong> Read
+<a href="#honest-limits">Honest limits</a> before relying on any proof it produces.</p>
+</blockquote>
+<p>The authoritative references are the API docs
+(<a href="https://docs.rs/tpt-axiom">docs.rs/tpt-axiom</a>) and the design document in
+the repository (<code>docs/design/spec.md</code>). This book is the guided tour.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="getting-started"><a class="header" href="#getting-started">Getting started</a></h1>
+<p>Add the umbrella crate:</p>
+<pre><code class="language-toml">[dependencies]
+tpt-axiom = { version = "0.1", features = ["halo2"] } # halo2 for real proofs
+</code></pre>
+<p>Then run the two halves of the library — uncertainty arithmetic and a real
+proof:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use tpt_axiom::prelude::*;
+
+// 1. Uncertainty arithmetic: readings carry (mean, variance).
+let pos = Fuzzy::new(10.5, 0.5);
+let vel = Fuzzy::from_std_dev(2.0, 0.1_f64.sqrt());
+let next = pos + vel * 1.0;
+println!("{:.3} ± {:.3}", next.mean(), next.standard_deviation());
+
+// 2. A zero-knowledge circuit from a plain function.
+#[zk_provable(backend = "halo2")]
+fn prove_balance_transfer(
+    #[public] sender_balance: u64,
+    #[public] receiver_balance: u64,
+    #[secret] amount: u64,
+) {
+    assert!(sender_balance &gt;= amount);
+}
+
+let backend = Halo2Backend;
+let ir = ProveBalanceTransfer.build();
+let circuit = backend.compile(&amp;ir).unwrap();
+let (pk, vk) = backend.generate_keys(&amp;ir, &amp;[]).unwrap();
+let proof = backend.prove(&amp;circuit, &amp;pk, &amp;[50, 20], &amp;[30]).unwrap();
+assert!(backend.verify(&amp;vk, &amp;[50, 20], &amp;proof).unwrap());
+<span class="boring">}</span></code></pre>
+<p>The function above still runs as plain Rust — <code>prove_balance_transfer(50, 20, 30)</code> — and <em>also</em> lowers to a backend-agnostic circuit. Prefer starting
+from the examples in the repository (<code>examples/README.md</code>); each documents
+its expected output and runs in CI. For a fresh project, <code>tpt-axiom-template</code>
+generates one via <code>cargo generate</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="uncertainty-arithmetic"><a class="header" href="#uncertainty-arithmetic">Uncertainty arithmetic</a></h1>
+<p><a href="https://docs.rs/tpt-axiom-core/latest/tpt_axiom_core/struct.Fuzzy.html"><code>Fuzzy&lt;T&gt;</code></a>
+is a value plus a variance, with the standard first-order error-propagation
+rules bound to the arithmetic operators:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Operation</th><th>Mean</th><th>Variance</th></tr>
+</thead>
+<tbody>
+<tr><td><code>a + b</code> / <code>a - b</code></td><td><code>m_a ± m_b</code></td><td><code>v_a + v_b</code></td></tr>
+<tr><td><code>a * b</code></td><td><code>m_a·m_b</code></td><td><code>v_a v_b + v_a m_b² + v_b m_a²</code></td></tr>
+<tr><td><code>a / b</code></td><td><code>m_a/m_b</code></td><td>delta-method approximation</td></tr>
+<tr><td><code>a * c</code></td><td><code>c·m_a</code></td><td><code>c² v_a</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>Three things to internalize (all documented on the type):</p>
+<ul>
+<li>operands are assumed <strong>independent</strong> — see
+<a href="#correlated-uncertainty">Correlated uncertainty</a> for the exact alternative;</li>
+<li>division is the <strong>delta-method approximation</strong>, not an identity;</li>
+<li><code>x - x</code> has variance <code>2v</code>, because the model cannot see that both
+operands are the same quantity.</li>
+</ul>
+<p>Nonlinear transforms exist as named methods (<code>exp</code>, <code>ln</code>, <code>sqrt</code>, <code>powi</code>,
+<code>tanh</code>) with second-order mean correction, and the generic engine behind
+them is <code>Fuzzy::transform(f, f', f'')</code>.</p>
+<p>Helpers ride along: <code>standard_deviation</code>, <code>confidence_interval(level)</code>,
+<code>z_score</code>, <code>checked_div</code>, <code>checked_fuse</code> (N-way fusion via <code>fuse_all</code>).
+Degenerate arithmetic follows IEEE semantics instead of panicking; the
+<code>checked_*</code> forms return <code>Result</code> when you want validation.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="propagation-modes"><a class="header" href="#propagation-modes">Propagation modes</a></h1>
+<p>When a transform is too nonlinear for the delta method, two alternatives
+live in <a href="https://docs.rs/tpt-axiom-core"><code>tpt_axiom_core::propagate</code></a>:</p>
+<ul>
+<li><strong>Monte Carlo</strong> (<code>monte_carlo</code>): draws <code>(x, y)</code> pairs from the two
+Gaussian models, pushes them through <code>f</code>, and reports
+Welford-accumulated sample moments. Convergence is the usual <code>1/√N</code>; the
+RNG is an injected <code>FnMut() -&gt; f64</code> uniform generator, so the core stays
+dependency-free and fixed seeds make tests reproducible.</li>
+<li><strong>Unscented transform</strong> (<code>unscented</code>): five deterministic sigma points
+(mean and <code>±√3σ</code> per axis, standard weights), weighted moments recovered
+in closed form. Five evaluations of <code>f</code>, no RNG, and second-order
+accuracy in the mean — for <code>exp</code>, the UT mean lands near the exact
+lognormal <code>e^{m+v/2}</code> where the delta method reports <code>e^m</code>.</li>
+</ul>
+<p>Both assume independent inputs, exactly like the operators. Both are also
+cross-checked in the test suite against the closed forms: exact for linear
+maps, and within statistical/second-order tolerance of the lognormal mean
+for <code>exp</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="distribution-families"><a class="header" href="#distribution-families">Distribution families</a></h1>
+<p><a href="https://docs.rs/tpt-axiom-core/latest/tpt_axiom_core/enum.Distribution.html"><code>Distribution&lt;T&gt;</code></a>
+is the Gaussian-shaped summary the arithmetic operates on. The <em>inputs</em> to a
+pipeline usually have more shape — that is
+<a href="https://docs.rs/tpt-axiom-core/latest/tpt_axiom_core/families/index.html"><code>tpt_axiom_core::families</code></a>:</p>
+<ul>
+<li><code>Uniform</code>, <code>Beta</code>, <code>Gamma</code> (shape/rate), <code>LogNormal</code>, <code>StudentT</code>,
+<code>Poisson</code>, <code>Binomial</code>;</li>
+<li>every family has validated construction, exact moments, <code>pdf</code>, <code>cdf</code>,
+<code>quantile</code>, and <code>prob_greater_than</code> (computed through the crate’s own
+special functions — Lanczos lgamma, incomplete gamma/beta — accurate to
+~1e-13 with no external dependencies);</li>
+<li>the conjugate updates are one call each: <code>Beta::update_bernoulli</code> and
+<code>Gamma::update_poisson</code>;</li>
+<li><code>credible_interval(level)</code> on the continuous trait gives the central
+interval;</li>
+<li>conversions into the uncertainty arithmetic go through <code>.moments()</code> —
+only the first two moments survive, which is the same honesty rule the
+Augur bridge’s <code>_approx</code> conversions carry.</li>
+</ul>
+<p>Extras in the same module: exact Gaussian KL divergence, and
+<code>tpt_axiom_core::logits</code> (<code>softmax</code>, <code>cross_entropy</code>, <code>top_k</code>) for model
+outputs. The <code>ab_test</code> example in the repository puts the pieces together:
+posteriors, credible intervals, <code>P(B &gt; A)</code> by quadrature, and an explicit
+ship policy.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="correlated-uncertainty"><a class="header" href="#correlated-uncertainty">Correlated uncertainty</a></h1>
+<p><code>Fuzzy</code> assumes independence.
+<a href="https://docs.rs/tpt-axiom-core/latest/tpt_axiom_core/struct.Correlated.html"><code>Correlated</code></a>
+drops that assumption: a mean vector plus a full covariance matrix,
+validated (finite, symmetric, positive semi-definite via Cholesky) at
+construction.</p>
+<p>Propagation is exact linear algebra:</p>
+<ul>
+<li><code>weighted_sum(&amp;[1.0, -1.0])</code> computes <code>wᵀΣw</code> — with correlation +1 and
+equal variances, the difference <code>x − x</code> collapses to <em>certainty</em>, where
+independent <code>Fuzzy</code> arithmetic would report <code>2v</code>;</li>
+<li><code>linear_map(&amp;a)</code> propagates <code>AΣAᵀ</code> through the whole matrix.</li>
+</ul>
+<p>Nonlinear correlated maps (Jacobians per transform) are future work; the
+type covers the linear-exactness gap the <code>Fuzzy</code> docs warn about.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="probabilistic-decisions"><a class="header" href="#probabilistic-decisions">Probabilistic decisions</a></h1>
+<p>The intelligence types model decisions rather than measurements:</p>
+<ul>
+<li><a href="https://docs.rs/tpt-axiom-core/latest/tpt_axiom_core/struct.Probability.html"><code>Probability</code></a>
+is the <em>chance of an outcome</em>;
+<a href="https://docs.rs/tpt-axiom-core/latest/tpt_axiom_core/struct.Confidence.html"><code>Confidence</code></a>
+is the <em>belief in a result</em>. Same range, different types — conversion is
+explicit and visible at the call site.</li>
+<li><a href="https://docs.rs/tpt-axiom-core/latest/tpt_axiom_core/enum.Decision.html"><code>Decision&lt;T&gt;</code></a>
+makes abstention a first-class outcome: <code>Decision::Abstain { reason }</code>
+instead of an ad-hoc <code>None</code>. Every policy threshold is a caller argument.</li>
+<li>Evidence combines in log space (no overflow), Bayesian updates run on
+<code>Categorical</code>/<code>Hypotheses</code>, and <code>classify_by_confidence</code> gives the
+three-way accept/review/reject escalation primitive.</li>
+<li>Rankings, multi-label decisions (per-label, uncertainty never leaks
+between labels), decision records with provenance, and calibration
+metadata round out the vocabulary.</li>
+</ul>
+<p>The engine boundary in <code>tpt-axiom-interop</code> turns any external model into
+these types: validated scores, provenance attached, duplicate labels and
+coin-flip thresholds rejected at the boundary. The <code>ml_decision_abstention</code>
+example shows the whole chain ending in an honest abstention.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="zero-knowledge-circuits"><a class="header" href="#zero-knowledge-circuits">Zero-knowledge circuits</a></h1>
+<p>Annotate a plain function; the macro keeps it runnable as Rust <em>and</em> lowers
+it to a backend-agnostic IR:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[zk_provable(backend = "halo2")]
+fn prove_age_over(
+    #[public] current_year: u32,
+    #[public] min_age: u32,
+    #[secret] birth_year: u32,
+) {
+    assert!(current_year - birth_year &gt;= min_age);
+}
+<span class="boring">}</span></code></pre>
+<p>Supported syntax: straight-line integer arithmetic (<code>+</code>, <code>-</code>, <code>*</code>, and
+<code>/</code>/<code>%</code> on unsigned operands via the quotient/remainder gadget), <code>let</code>
+bindings and <code>let mut</code> accumulators (<code>acc += …</code> rebinding — each assignment
+becomes a fresh value in the circuit), <code>assert!</code>/<code>assert_eq!</code> (conjunctions
+with <code>&amp;&amp;</code>), <code>debug_assert!</code> (a circuit has no debug builds — it is always
+enforced), <code>!=</code> (see below), <code>if</code> statements and <code>if</code>/<code>else</code> expressions,
+and bounded <code>for i in a..b</code> loops (literal bounds, unrolled).</p>
+<p>Everything else is a clear compile error, including early returns, signed
+division, and loops with runtime bounds.</p>
+<h2 id="inequality-"><a class="header" href="#inequality-">Inequality: <code>!=</code></a></h2>
+<p><code>assert!(a != b)</code> lowers to an <em>inequality gadget</em>: a free boolean selector
+<code>t</code> with <code>t·t == t</code> (booleanity), <code>t·(a−b) − t ≥ 0</code> (so <code>t = 1 ⇒ a ≥ b + 1</code>)
+and <code>t·(a−b+1) − (a−b+1) ≥ 0</code> (so <code>t = 0 ⇒ a ≤ b − 1</code>). A satisfying
+assignment exists exactly when <code>a ≠ b</code> over the integers — a false equality
+satisfies neither arm — so the claim is sound, and the selector is forced to
+the side the difference actually lies on.</p>
+<p>The selector is a <em>free witness</em>: circuit-internal state that is not part of
+the caller-facing witness API. The prover names only the declared inputs;
+the driver solves the selector by search (<code>t</code> is tried as <code>0</code>, then <code>1</code>),
+and every backend range-checks it against its declared 1-bit type regardless.</p>
+<h2 id="conditionals-if"><a class="header" href="#conditionals-if">Conditionals: <code>if</code></a></h2>
+<p>An <code>if</code> statement lowers both branches and gates each branch’s constraints
+by a selector pinned to the condition’s truth (<code>s</code> for the then-branch,
+<code>1 − s</code> for the else-branch): in an unselected branch every constraint
+becomes an identically-zero vacuity. Conditions may be any of the six
+comparisons, including <code>==</code> and <code>!=</code>. An <code>if</code>/<code>else</code> <em>expression</em> multiplexes
+the two branch values: <code>b + s·(a − b)</code>.</p>
+<h2 id="loops-bounded-for"><a class="header" href="#loops-bounded-for">Loops: bounded <code>for</code></a></h2>
+<p>A <code>for</code> loop must iterate a literal range (<code>for i in 0..8</code>, <code>a..=b</code> forms
+included) and is unrolled: the counter is a per-iteration constant and the
+body lowers once per iteration. Unrolling is capped (1 024 iterations) to
+keep circuits fixed-size and compile times sane. Combined with a <code>let mut</code>
+accumulator this covers the classic sum/product patterns:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[zk_provable(backend = "halo2")]
+fn weighted_sum(#[secret] x: i64, #[public] total: i64) {
+    let mut acc = 0;
+    for i in 1..5 {
+        acc += i * x;
+    }
+    assert_eq!(acc, total);
+}
+<span class="boring">}</span></code></pre>
+<p>Each <code>acc += …</code> becomes a fresh SSA value; the loop counter never leaks past
+the loop, and code after it reads the final accumulator value.</p>
+<p>What the prover gets:</p>
+<ul>
+<li><code>ProveAgeOverInputs</code> — a typed input struct, one field per parameter;</li>
+<li><code>NamedWitness</code> — build the witness by <em>name</em>; resolution is checked
+(every slot present, nothing extra) before proving;</li>
+<li>the prove path re-validates the witness with exact <code>i128</code> arithmetic and
+rejects violations with a constraint index — and solves any gadget
+selectors first, so a false <code>!=</code> claim is refused before any proving work.</li>
+</ul>
+<p>Soundness rails, enforced at compile/keygen time:</p>
+<ul>
+<li>every input is range-checked against its <em>declared</em> type (free selectors
+against their 1-bit type);</li>
+<li>intermediates are statically bounded below the field size, so field
+wraparound cannot satisfy a constraint integer arithmetic would not;</li>
+<li>division is the quotient/remainder gadget (non-negative remainder), and
+division by zero cannot prove.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="proving-backends"><a class="header" href="#proving-backends">Proving backends</a></h1>
+<p>The same IR proves on every backend through the <code>ZkBackend</code> trait:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Backend</th><th>Stack</th><th>Setup</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td>halo2</td><td>IPA over Pallas/Vesta</td><td>none (universal)</td><td>fastest proving; proof = transcript bytes</td></tr>
+<tr><td>arkworks</td><td>Groth16 over BLS12-381</td><td><strong>per-circuit trusted setup</strong></td><td>smallest proofs; canonical key serialization</td></tr>
+<tr><td>SP1</td><td>zkVM (RISC-V)</td><td>n/a</td><td>contract scaffolded; toolchain is Linux/macOS-only</td></tr>
+</tbody>
+</table>
+</div>
+<p>Reference numbers for the balance-transfer circuit on a dev workstation:
+halo2 keygen ≈ 17 ms, prove ≈ 8 ms, verify ≈ 3 ms; arkworks keygen ≈ 414
+ms, prove ≈ 338 ms, verify ≈ 10 ms. <code>cargo bench</code> is the authoritative
+comparison.</p>
+<p><strong>Groth16’s toxic waste</strong>: <code>generate_keys</code> samples fresh randomness that
+must be destroyed after setup; anyone holding it can forge proofs. The
+in-process <code>OsRng</code> setup is development-grade — production needs a
+multi-party ceremony. See <a href="#honest-limits">Honest limits</a>.</p>
+<p>The <code>custom_backend</code> example (in the examples crate) walks through the whole
+<code>ZkBackend</code> contract for adapter authors, using the reference R1CS lowering
+in place of real cryptography.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="proof-envelopes--services"><a class="header" href="#proof-envelopes--services">Proof envelopes &amp; services</a></h1>
+<p>A proof is only useful if it can travel. The
+<a href="https://docs.rs/tpt-axiom-zk/latest/tpt_axiom_zk/struct.ProofEnvelope.html"><code>ProofEnvelope</code></a>
+is the wire format: version tag, backend name, circuit name, a SHA-256
+<strong>digest commitment to the exact circuit IR</strong>, the public inputs, and the
+canonical proof bytes. <code>ProofClaim::to_envelope</code> / <code>from_envelope</code>
+round-trip a claim through JSON with the digest intact — a rebuilt claim
+still verifies, and still <em>refuses</em> a proof replayed against a different
+circuit definition.</p>
+<p>The <code>proof_service</code> example (in the examples crate) shows the deployment shape: a prover service
+(name-keyed JSON witness in, envelope out — the secret witness never leaves
+that process), a verifier service (envelope in, verdict out), and a client
+watching a tampered envelope get refused. The CLI (<code>cargo axiom prove --input witness.json</code>, <code>cargo axiom verify --proof envelope.json</code>) speaks
+the same formats.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="cookbook"><a class="header" href="#cookbook">Cookbook</a></h1>
+<p>End-to-end recipes for the common shapes. Every snippet uses the APIs the
+rest of the book introduces; the full runnable versions live in
+<code>crates/tpt-axiom-examples/examples/</code> (run any of them with
+<code>cargo run -p tpt-axiom-examples --example &lt;name&gt;</code>).</p>
+<h2 id="prove-a-value-clears-a-bar-without-revealing-it"><a class="header" href="#prove-a-value-clears-a-bar-without-revealing-it">Prove a value clears a bar without revealing it</a></h2>
+<p>The bread-and-butter range claim: the prover holds a secret number, the
+verifier learns only that it clears a public threshold.</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use tpt_axiom::prelude::*;
+
+#[zk_provable(backend = "halo2")]
+fn prove_score_at_least(
+    #[public] cutoff: i64,
+    #[secret] score: i64,
+) {
+    assert!(score &gt;= cutoff);
+}
+<span class="boring">}</span></code></pre>
+<p>The comparison lowers to <code>score − cutoff ≥ 0</code>, and the <code>NonNegative</code>
+constraint becomes a bit-decomposition range check in the backend — so the
+proof fails unless <code>score</code> really is at least <code>cutoff</code>, while the verifier
+sees only <code>cutoff</code>. Declared types matter: a <code>u32</code> parameter is proven in
+<code>[0, 2^32)</code>, a signed <code>i64</code> in <code>[-2^63, 2^63)</code>.</p>
+<p>Run it: <code>cargo run -p tpt-axiom-examples --example age_proof</code>.</p>
+<h2 id="prove-two-values-differ-"><a class="header" href="#prove-two-values-differ-">Prove two values differ (<code>!=</code>)</a></h2>
+<p><code>assert!(a != b)</code> lowers to the inequality gadget — a free boolean selector
+with two gated range checks. A satisfying assignment exists exactly when the
+values really differ, so a false equality is refused <em>before any proving
+work</em> (the driver solves the selector, finds none, and errors out):</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[zk_provable(backend = "halo2")]
+fn prove_distinct_bid(#[public] reserve: i64, #[secret] bid: i64) {
+    assert!(bid != reserve);
+    assert!(bid &gt;= 0);
+}
+<span class="boring">}</span></code></pre>
+<p>The selector is never part of the witness you supply:
+<code>ProveDistinctBidInputs::new(reserve, bid).named()</code> is the whole prover-side
+story.</p>
+<h2 id="branch-on-a-secret-condition-if"><a class="header" href="#branch-on-a-secret-condition-if">Branch on a secret condition (<code>if</code>)</a></h2>
+<p>Both arms lower; each arm’s constraints are gated by a selector pinned to
+the condition’s truth, so exactly one arm’s claims are enforced and the
+verifier cannot tell which:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[zk_provable(backend = "arkworks")]
+fn prove_risk_band(
+    #[public] low: i64,
+    #[public] high: i64,
+    #[secret] exposure: i64,
+    #[secret] collateral: i64,
+) {
+    if exposure &gt;= high {
+        assert!(collateral &gt;= exposure); // fully collateralized when large
+    } else {
+        assert!(exposure &gt;= low); // within band when small
+    }
+}
+<span class="boring">}</span></code></pre>
+<p>All six comparison operators work as conditions (<code>==</code> and <code>!=</code> included),
+branches may bind their own <code>let</code>s, and <code>if</code>/<code>else</code> <em>expressions</em> multiplex
+values: <code>let tier = if volume &gt;= 100 { 2 } else { 1 };</code> produces a public
+output computed from secret data.</p>
+<h2 id="unrolled-rounds-with-an-accumulator-for"><a class="header" href="#unrolled-rounds-with-an-accumulator-for">Unrolled rounds with an accumulator (<code>for</code>)</a></h2>
+<p>A <code>for</code> loop over a <em>literal</em> range unrolls; a <code>let mut</code> accumulator
+rebinds as a fresh value each step. Together they cover the sum/product
+patterns:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[zk_provable(backend = "arkworks")]
+fn prove_weekly_total(#[secret] daily: i64, #[public] total: i64) {
+    let mut acc = 0;
+    for i in 0..7 {
+        acc += daily; // 7 · daily, one constraint per step
+    }
+    assert_eq!(acc, total);
+}
+<span class="boring">}</span></code></pre>
+<p>The counter is usable in the body (<code>acc += i * daily;</code> weights each step),
+unrolling is capped at 1 024 iterations, and the counter never leaks past
+the loop.</p>
+<h2 id="prove-a-derived-statistic-over-secret-data"><a class="header" href="#prove-a-derived-statistic-over-secret-data">Prove a derived statistic over secret data</a></h2>
+<p>Anything expressible as integer arithmetic can be proven: a mean at a fixed
+scale, a weighted sum, a fusion. The verifiable sensor-fusion claim is the
+worked example — the circuit proves the <em>published</em> fused mean/variance is
+the minimum-variance fusion of two secret readings, in exact integer
+arithmetic, and the example then forges three different ways to show the
+forgeries are rejected with constraint indices:</p>
+<pre><code class="language-sh">cargo run -p tpt-axiom-examples --example sensor_fusion_claim
+</code></pre>
+<p>The pattern to copy: publish the derived value as a public input, constrain
+it to the arithmetic the claim describes, and keep the raw inputs secret.</p>
+<h2 id="ship-a-proof-to-a-verifier"><a class="header" href="#ship-a-proof-to-a-verifier">Ship a proof to a verifier</a></h2>
+<p><code>ProofEnvelope</code> is the wire format: backend name, circuit name, the IR-digest
+binding, the public inputs, and the proof bytes. The digest binding means a
+proof can never be re-verified against a different (say, weakened) circuit
+definition — the rebuild checks the commitment first and answers a clean
+<code>false</code>:</p>
+<pre><code class="language-rust ignore">let claim = prove_named(&amp;backend, &amp;ProveScoreAtLeast, &amp;pk, &amp;witness)?;
+let envelope = claim.to_envelope(&amp;backend).expect("halo2 proofs are bytes");
+// …send `envelope` as JSON to the verifier…
+let rebuilt = ProofClaim::from_envelope(&amp;backend, &amp;envelope).expect("matching backend");
+assert!(verify_claim(&amp;backend, &amp;ProveScoreAtLeast, &amp;vk, &amp;rebuilt)?);</code></pre>
+<p><code>examples/proof_service.rs</code> runs the whole loop over localhost TCP (JSON
+witness in, envelope back, verdict on a tampered case), and
+<code>examples/onchain_export.rs</code> emits a Solidity Groth16 verifier plus a forge
+test for the same proof.</p>
+<h2 id="debug-a-prove-that-fails"><a class="header" href="#debug-a-prove-that-fails">Debug a prove that fails</a></h2>
+<p>The prove path is checked <em>before</em> proving, so failures are precise:</p>
+<ul>
+<li><strong><code>NamedWitnessError::MissingInput</code> / <code>UnknownInput</code></strong> — a typo or a field
+from another circuit; the name-keyed API catches it before any arithmetic.</li>
+<li><strong><code>WitnessError::Violated { index }</code></strong> — the named constraint is not
+satisfied by your witness. <code>cargo axiom inspect &lt;circuit&gt;</code> prints the
+public/secret layout slot by slot; the index points into the constraint
+list the IR prints.</li>
+<li><strong><code>WitnessError::NonNegativeOutOfRange</code></strong> — the claim’s gap is honest but
+wider than the 64-bit range-check chain (default <code>range_bits</code>); widen
+<code>KeygenOptions</code> or narrow the claim.</li>
+<li><strong><code>FreeVariablesUnsatisfiable</code></strong> — for <code>!=</code>/<code>if</code> gadgets this means the
+<em>claim itself is false</em> (the equality holds, or neither branch is
+satisfiable); no selector assignment works.</li>
+</ul>
+<p><code>cargo axiom check</code> walks every registered circuit and re-validates the IRs,
+which catches lowering drift at build time.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="honest-limits"><a class="header" href="#honest-limits">Honest limits</a></h1>
+<p>Read this page before relying on anything above.</p>
+<ol>
+<li><strong>Not audited.</strong> The implementations are new; an external audit is a
+prerequisite for production use.</li>
+<li><strong>Groth16 trusted setup.</strong> The arkworks backend’s per-circuit setup has
+no ceremony support. Development-grade only.</li>
+<li><strong>Verifier-key provenance is your job.</strong> This crate verifies against a
+key it is <em>given</em>; binding keys to identities is the integrator’s
+responsibility.</li>
+<li><strong>Proof of statement, not of data.</strong> Proofs attest that a statement
+holds for the public inputs — nothing about where those inputs came
+from. Provenance metadata is producer-claimed, not verified.</li>
+<li><strong>Independence assumptions.</strong> <code>Fuzzy</code> arithmetic and the propagation
+modes assume independent inputs; use <code>Correlated</code> when they are not.</li>
+<li><strong>First-order division.</strong> The <code>a / b</code> variance rule is the delta-method
+approximation, and division inside circuits requires unsigned operands.</li>
+<li><strong>Deterministic proving is not provided.</strong> Proving uses the OS RNG; if
+your protocol needs non-malleable proofs, handle it at the protocol
+layer.</li>
+<li><strong>What is missing.</strong> Poseidon/Merkle gadgets, disjunction (<code>!=</code>, <code>if</code>,
+bounded loops — they need prover-supplied witness variables), in-browser
+proof verification, and nonlinear correlated maps are all open; the
+roadmap lives in the repository’s <code>todo.md</code>. An EIP-2537 on-chain
+Groth16 verifier exists (<code>contracts/</code>, generated by the
+<code>onchain_export</code> example) but shares the not-audited status above.</li>
+</ol>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-09f2665d.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+
+        <script>
+        window.addEventListener('load', function() {
+            window.setTimeout(window.print, 100);
+        });
+        </script>
+
+
+    </div>
+    </body>
+</html>
