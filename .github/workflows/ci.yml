@@ -88,7 +88,7 @@ jobs:
       # The declared MSRV must hold for the publishable foundation crate
       # (dev-dependencies are exempt from MSRV and need a newer rustc, so
       # only library targets are checked here).
-      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: dtolnay/rust-toolchain@1.120.0
       - uses: Swatinem/rust-cache@v2
       - run: cargo check -p tpt-axiom-core
       - run: cargo check -p tpt-axiom-core --features serde
