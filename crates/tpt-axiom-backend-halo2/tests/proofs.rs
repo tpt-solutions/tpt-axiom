@@ -457,7 +457,9 @@ fn verifiable_fusion_claim_accepts_honest_readings() {
     let ir = ProveFusedEstimate.build();
     let circuit = backend.compile(&ir).expect("compile");
     let (pk, vk) = backend.generate_keys(&ir, &[]).expect("keys");
-    let proof = backend.prove(&circuit, &pk, &publics, &secrets).expect("prove");
+    let proof = backend
+        .prove(&circuit, &pk, &publics, &secrets)
+        .expect("prove");
     assert!(
         backend.verify(&vk, &publics, &proof).expect("verify"),
         "the honest fusion claim must verify"
@@ -465,7 +467,9 @@ fn verifiable_fusion_claim_accepts_honest_readings() {
     // The verifier learns the fusion — and nothing about which reading was
     // which: swapped secrets describe the same published estimate.
     let swapped = [secrets[2], secrets[3], secrets[0], secrets[1]];
-    let proof = backend.prove(&circuit, &pk, &publics, &swapped).expect("prove");
+    let proof = backend
+        .prove(&circuit, &pk, &publics, &swapped)
+        .expect("prove");
     assert!(backend.verify(&vk, &publics, &proof).expect("verify"));
 }
 
@@ -507,7 +511,9 @@ fn division_gadget_roundtrips_and_rejects_forged_quotients() {
     let (pk, vk) = backend.generate_keys(&ir, &[]).expect("keys");
 
     // 100 / 7 = 14 with remainder 2: the honest quotient proves and verifies.
-    let proof = backend.prove(&circuit, &pk, &[100, 14], &[7]).expect("prove");
+    let proof = backend
+        .prove(&circuit, &pk, &[100, 14], &[7])
+        .expect("prove");
     assert!(backend.verify(&vk, &[100, 14], &proof).expect("verify"));
 
     // The forged quotient 15 implies remainder -5, outside [0, d-1].
@@ -530,7 +536,9 @@ fn remainder_gadget_roundtrips() {
     let ir = RemainderOf.build();
     let circuit = backend.compile(&ir).expect("compile");
     let (pk, vk) = backend.generate_keys(&ir, &[]).expect("keys");
-    let proof = backend.prove(&circuit, &pk, &[100, 2], &[7]).expect("prove");
+    let proof = backend
+        .prove(&circuit, &pk, &[100, 2], &[7])
+        .expect("prove");
     assert!(backend.verify(&vk, &[100, 2], &proof).expect("verify"));
     // Wrong remainder: 3 implies quotient 13.857…, outside the integers.
     assert!(backend.prove(&circuit, &pk, &[100, 3], &[7]).is_err());
@@ -560,12 +568,15 @@ fn overflow_bound_circuit_is_rejected_at_compile() {
 // --- Gadgets end to end: `!=`, `if`, bounded `for`, solved selectors ---
 
 #[zk_provable(backend = "halo2")]
+#[allow(clippy::let_and_return, clippy::bool_to_int_with_if)] // kept-fn shape
 fn halo2_gadgets(#[public] cutoff: i64, #[secret] score: i64) -> i64 {
     assert!(score != cutoff);
     let mut acc = 0;
     for i in 1..4 {
         acc += i * score;
     }
+    // The accumulator is proved, not just computed: 1x + 2x + 3x = 6x.
+    assert_eq!(acc, 6 * score);
     let label = if score >= cutoff { 1 } else { 0 };
     label
 }

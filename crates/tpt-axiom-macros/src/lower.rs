@@ -663,6 +663,7 @@ impl Lowerer {
     /// fully-resolved enclosing selector (`None` = unconditional); when it is
     /// `Some`, every emitted constraint is vacuous unless the branch holding
     /// this gadget is selected.
+    #[allow(clippy::many_single_char_names)] // l/r/d/t/gate mirror the gadget algebra
     fn emit_ne_gadget(&mut self, l: &Ident, r: &Ident, gate: Option<&Ident>) -> Ident {
         let d = self.emit_sub(l, r);
         let t = self.emit_free_bool();
@@ -741,7 +742,7 @@ impl Lowerer {
                     return Err(Error::new(
                         cond.span(),
                         "`if` conditions must be comparisons such as `a >= b`",
-                    ))
+                    ));
                 }
             },
             Expr::Binary(bin) if is_comparison(bin.op) => bin,
@@ -749,7 +750,7 @@ impl Lowerer {
                 return Err(Error::new(
                     cond.span(),
                     "`if` conditions must be comparisons such as `a >= b`",
-                ))
+                ));
             }
         };
         let l = self.compile_expr(&bin.left)?;
@@ -838,7 +839,7 @@ impl Lowerer {
                     return Err(Error::new(
                         other.span(),
                         "the `else` branch of an `if` statement must be a block",
-                    ))
+                    ));
                 }
             };
             let one = self.emit_const(1);
@@ -1329,10 +1330,8 @@ impl Lowerer {
                         // remainder, which the gadget's range checks would
                         // reject at prove time — so signed division is a
                         // compile error with that explanation.
-                        let (l_spec, r_spec) = (
-                            self.spec_of(&bin.left, &l)?,
-                            self.spec_of(&bin.right, &r)?,
-                        );
+                        let (l_spec, r_spec) =
+                            (self.spec_of(&bin.left, &l)?, self.spec_of(&bin.right, &r)?);
                         if l_spec.signed || r_spec.signed {
                             return Err(Error::new(
                                 bin.span(),
@@ -1352,8 +1351,7 @@ impl Lowerer {
                                 let #t = __axiom_builder.sub(#l, #product);
                             });
                         } else {
-                            self.tokens
-                                .extend(quote! { let #t = __axiom_quotient; });
+                            self.tokens.extend(quote! { let #t = __axiom_quotient; });
                         }
                     }
                     _ => {
@@ -1563,21 +1561,19 @@ fn pattern_ident(pat: &Pat) -> syn::Result<Ident> {
 
 /// Whether a binary operator is one of the compound assignments (`+=`, `-=`,
 /// `*=`) an accumulator may use.
-fn is_compound_assign(op: BinOp) -> bool {
-    matches!(op, BinOp::AddAssign(_) | BinOp::SubAssign(_) | BinOp::MulAssign(_))
+const fn is_compound_assign(op: BinOp) -> bool {
+    matches!(
+        op,
+        BinOp::AddAssign(_) | BinOp::SubAssign(_) | BinOp::MulAssign(_)
+    )
 }
 
 /// Whether a binary operator is one of the six comparisons an `if` condition
 /// may use.
-fn is_comparison(op: BinOp) -> bool {
+const fn is_comparison(op: BinOp) -> bool {
     matches!(
         op,
-        BinOp::Ge(_)
-            | BinOp::Gt(_)
-            | BinOp::Le(_)
-            | BinOp::Lt(_)
-            | BinOp::Eq(_)
-            | BinOp::Ne(_)
+        BinOp::Ge(_) | BinOp::Gt(_) | BinOp::Le(_) | BinOp::Lt(_) | BinOp::Eq(_) | BinOp::Ne(_)
     )
 }
 
@@ -1599,7 +1595,10 @@ fn literal_value(expr: &Expr) -> syn::Result<i64> {
         Expr::Unary(unary) if matches!(unary.op, UnOp::Neg(_)) => {
             let inner = literal_value(&unary.expr)?;
             inner.checked_neg().ok_or_else(|| {
-                Error::new(unary.span(), "integer literal does not fit the IR's scalar model")
+                Error::new(
+                    unary.span(),
+                    "integer literal does not fit the IR's scalar model",
+                )
             })
         }
         Expr::Paren(paren) => literal_value(&paren.expr),

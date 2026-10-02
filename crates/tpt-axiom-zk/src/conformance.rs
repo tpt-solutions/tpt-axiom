@@ -75,11 +75,14 @@ pub fn bounds_check_ir() -> ConstraintSystem {
 }
 
 /// The IR for `not_equal`: exactly what `#[zk_provable]` emits for
-/// `assert!(l != r)` — a free boolean selector `s` with a booleanity
-/// constraint and the two gated range checks `s = 1 ⇒ l ≥ r + 1`,
-/// `s = 0 ⇒ l ≤ r − 1`. Exercises the free-witness tail convention end to
-/// end: the aux value rides the secret slice after the named secrets.
+/// `assert!(l != r)`.
+///
+/// A free boolean selector `s` with a booleanity constraint and the two gated
+/// range checks `s = 1 ⇒ l ≥ r + 1`, `s = 0 ⇒ l ≤ r − 1`. Exercises the
+/// free-witness tail convention end to end: the aux value rides the secret
+/// slice after the named secrets.
 #[must_use]
+#[allow(clippy::many_single_char_names)] // l/r/d/s mirror the gadget algebra
 pub fn not_equal_ir() -> ConstraintSystem {
     let mut b = ConstraintSystemBuilder::new("not_equal");
     let l = b.public_input("l");

@@ -414,7 +414,9 @@ fn division_gadget_roundtrips_and_rejects_forged_quotients() {
     let (pk, vk) = backend.generate_keys(&ir, &[]).expect("keys");
 
     // 100 / 7 = 14, remainder 2: proves and verifies.
-    let proof = backend.prove(&circuit, &pk, &[100, 14], &[7]).expect("prove");
+    let proof = backend
+        .prove(&circuit, &pk, &[100, 14], &[7])
+        .expect("prove");
     assert!(backend.verify(&vk, &[100, 14], &proof).expect("verify"));
 
     // Forged quotient 15 implies a negative remainder.
@@ -447,12 +449,15 @@ fn overflow_bound_circuit_is_rejected_at_keygen() {
 // --- Gadgets end to end: `!=`, `if`, bounded `for`, solved selectors ---
 
 #[zk_provable(backend = "arkworks")]
+#[allow(clippy::let_and_return, clippy::bool_to_int_with_if)] // kept-fn shape
 fn arkworks_gadgets(#[public] cutoff: i64, #[secret] score: i64) -> i64 {
     assert!(score != cutoff);
     let mut acc = 0;
     for i in 1..4 {
         acc += i * score;
     }
+    // The accumulator is proved, not just computed: 1x + 2x + 3x = 6x.
+    assert_eq!(acc, 6 * score);
     let label = if score >= cutoff { 1 } else { 0 };
     label
 }

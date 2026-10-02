@@ -247,10 +247,11 @@ pub fn check_with_range(
 }
 
 /// Searches for an assignment of the circuit's free (aux) witness variables
-/// that satisfies every constraint, and returns it in the tail-slice order
-/// the backends expect (appended after the named secrets).
+/// that satisfies every constraint.
 ///
-/// Free variables are the selector bits of disjunctive gadgets (`!=`, `if`);
+/// The result is in the tail-slice order the backends expect (appended after
+/// the named secrets). Free variables are the selector bits of disjunctive
+/// gadgets (`!=`, `if`);
 /// they are not part of the caller-facing witness API. The search is
 /// exhaustive over their domains — a `Bool` variable contributes the
 /// candidates `0` and `1` — in ascending lexicographic order, so the result
@@ -415,7 +416,10 @@ fn variable_value(
 /// gadget's range constraints then fail, which is the documented behavior
 /// for a zero divisor.
 fn div_trunc(values: &[Option<i128>], l: usize, r: usize) -> Option<i128> {
-    let (a, b) = (values.get(l).copied().flatten()?, values.get(r).copied().flatten()?);
+    let (a, b) = (
+        values.get(l).copied().flatten()?,
+        values.get(r).copied().flatten()?,
+    );
     if b == 0 {
         return None;
     }
@@ -605,6 +609,7 @@ mod tests {
     /// The IR shape the macro emits for `assert!(l != r)`: a free boolean
     /// selector `s`, booleanity, and the two gated range checks that force
     /// `s = 1 ⇒ l ≥ r + 1` and `s = 0 ⇒ l ≤ r − 1`.
+    #[allow(clippy::many_single_char_names)] // l/r/d/s mirror the gadget algebra
     fn not_equal_ir() -> ConstraintSystem {
         use tpt_axiom_ir::IntType;
         let mut b = ConstraintSystemBuilder::new("not_equal");

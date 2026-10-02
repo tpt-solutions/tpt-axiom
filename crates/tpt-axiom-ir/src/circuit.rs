@@ -571,7 +571,10 @@ impl ConstraintSystem {
     /// How many free (aux) witness variables the circuit declares.
     #[must_use]
     pub fn num_free(&self) -> usize {
-        self.variables.iter().filter(|info| info.aux.is_some()).count()
+        self.variables
+            .iter()
+            .filter(|info| info.aux.is_some())
+            .count()
     }
 
     /// Render the circuit as a multi-line textual description (diagnostics and

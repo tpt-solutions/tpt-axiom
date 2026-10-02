@@ -83,6 +83,77 @@ Each phase in [todo.md](todo.md) corresponds to a layer of this diagram:
 4. **Phase 4** — `tpt-axiom-backend-*`: concrete `ZkBackend` implementations
    producing real proofs.
 
+## Writing a backend
+
+The `ZkBackend` trait (`tpt-axiom-zk`) is the entire integration surface; a
+new proving stack plugs in behind it without touching the macro, the IR, or
+any downstream crate. The two shipping adapters (`tpt-axiom-backend-halo2`
+and `tpt-axiom-backend-arkworks`) are the reference implementations; the
+`custom_backend` example (`crates/tpt-axiom-zk/examples/custom_backend.rs`)
+is a minimal skeleton over the reference R1CS lowering.
+
+The contract, in the order a backend must honor it:
+
+1. **`compile(ir)`** — lower the `ConstraintSystem` into the backend's native
+   circuit form. Call `ir.validate()` first and surface
+   [`CircuitError`](tpt-axiom-ir) rather than panicking: a malformed IR must
+   be a typed error, never a synthesis-time panic. The IR is a DAG of `+`,
+   `-`, `*`, negation, and the gateless `div_trunc` node (see below), with
+   three constraint kinds — `Equal`, `Zero`, `NonNegative` — and *free
+   (aux) witness variables* (see step 3).
+
+2. **`generate_keys(ir, params)`** — produce `(ProvingKey, VerifyingKey)` at
+   the configured size. `KeygenOptions` encodes into the `params` bytes the
+   trait already speaks (`range_bits`, and halo2's row bound `k`); decode
+   them through the backend's `*Params` type as the shipping adapters do,
+   and auto-size rather than panic when no size is given. Reject any
+   intermediate whose static bit bound reaches `MAX_FAITHFUL_BITS` — that
+   check is what keeps field arithmetic a faithful image of integer
+   arithmetic.
+
+3. **`prove(circuit, pk, public, secret)`** — the soundness-critical half.
+   The `secret` slice carries the declared secrets *followed by the circuit's
+   solved free-witness values* (the selector bits of `!=`/`if` gadgets, in
+   `ir.free_variables()` order); for a circuit without free variables it is
+   exactly the named secrets, so the tail convention costs nothing. Enforce
+   the arity (`secret_inputs.len() + ir.num_free()`), re-run
+   `witness::check_with_range` (an unsatisfying witness must be rejected
+   before proving — real provers otherwise happily prove false statements),
+   then synthesize. Range semantics every backend must reproduce:
+   each named input is decomposed in `int_type.bits` bits (signed types
+   shifted by `2^(bits−1)`), each `NonNegative` in `range_bits` bits, free
+   variables in their declared 1-bit type — with the decomposed sum tied
+   back to the constrained node's own cell/variable, so a negative value's
+   field wrap is rejected rather than silently re-ranged.
+
+4. **`verify(vk, public, proof)`** — check the proof against the publics
+   alone. A malformed proof is a clean `Ok(false)`, not an error, wherever
+   the backend can distinguish the two; a wrong public-input count is also
+   `Ok(false)` (halo2's verifying material carries `num_publics` because its
+   vk cannot recover it; arkworks derives the count from the vk).
+
+5. **`encode_proof`/`decode_proof`** (optional) — canonical proof bytes so
+   `ProofEnvelope` can carry the claim across process/network boundaries.
+   Decode must refuse trailing bytes rather than verify a prefix.
+
+The `div_trunc` node deserves a note because it is the template for any
+future free-witness gadget: it carries *no gate of its own* in either
+backend. Its soundness lives entirely in the quotient/remainder gadget's
+constraints (`dividend == quotient·divisor + remainder`, `remainder ≥ 0`,
+`divisor − remainder − 1 ≥ 0`) — the node just transports the prover's
+answer, and the polynomial constraints make forging it unsatisfiable.
+Likewise the `!=`/`if` gadgets are pure constraint shapes over ordinary
+`Mul`/`Sub` nodes plus free boolean selectors; nothing about them is
+backend-specific.
+
+Finally, run the shared conformance suite —
+`tpt_axiom_zk::conformance::run_all(&YourBackend)` in the adapter's test
+suite — which drives the same scenarios (`balance_transfer`, `weighted_sum`,
+`bounds_check`, and the free-witness `not_equal` gadget) through every
+backend and asserts identical verdicts on the happy paths, tampered
+publics, and violating witnesses. A backend that passes `run_all` behaves,
+verdict-for-verdict, like the shipping two.
+
 ## Threat model
 
 The security-relevant guarantees and their current limits (trusted-setup

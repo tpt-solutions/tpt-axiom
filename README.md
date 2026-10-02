@@ -1,5 +1,12 @@
 # tpt-axiom
 
+[![CI](https://github.com/tpt-solutions/tpt-axiom/actions/workflows/ci.yml/badge.svg)](https://github.com/tpt-solutions/tpt-axiom/actions/workflows/ci.yml)
+[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue)](rust-toolchain.toml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE-MIT)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE-APACHE)
+[![docs.rs](https://img.shields.io/docsrs/tpt-axiom)](https://docs.rs/tpt-axiom)
+[![crates.io](https://img.shields.io/crates/v/tpt-axiom.svg)](https://crates.io/crates/tpt-axiom)
+
 **Probabilistic Logic and Native Zero-Knowledge State for Rust.**
 
 `tpt-axiom` brings advanced mathematical reasoning natively into Rust. It bridges
@@ -7,6 +14,9 @@ deterministic systems programming and the stochastic, provable mathematics
 required by autonomous systems, quantitative finance, and Web3 — letting you
 write probabilistic algorithms and zero-knowledge circuits in standard Rust
 syntax, with the compiler handling the heavy mathematical lifting.
+
+(The crates.io / docs.rs badges resolve once the crates are published; see the
+roadmap in [todo.md](todo.md).)
 
 See the [book](docs/book/src/intro.md) (mdBook source; `mdbook build
 docs/book`) for the guided tour, [the design document](docs/design/spec.md)
@@ -43,11 +53,14 @@ Experimental / incomplete:
 
 - SP1 zkVM backend — the `ZkBackend` contract is scaffolded; the actual
   IR-to-program lowering awaits SP1's Linux/macOS-only toolchain.
-- `tpt-axiom-cli` — a minimal driver today; the full `cargo axiom`
-  UX (inspect, check, bench) is on the roadmap.
+- WASM playground (`docs/playground/`) — circuit inspection and the
+  uncertainty demos run in the browser; in-browser *proof verification* and a
+  fuller graphical UI are still open.
+- Poseidon / Merkle-membership gadgets — field-native hashing needs a new IR
+  node kind and per-field parameters; see the roadmap.
 
-Missing (see the roadmap in [todo.md](todo.md)): correlated uncertainty,
-nonlinear transforms, more distribution families, WASM verifiers.
+Missing (see the roadmap in [todo.md](todo.md)): in-browser proof
+verification, the general-distribution KL divergence, and crate publication.
 
 ## Getting started
 
@@ -141,9 +154,12 @@ assert_eq!(ir.num_public(), 2); // sender, receiver
 assert_eq!(ir.num_secret(), 1); // amount
 ```
 
-Supported body syntax is straight-line integer arithmetic (`+`, `-`, `*`,
-literals, `let` bindings) plus `assert!` comparisons (`>=`, `<=`, `>`, `<`,
-`==`, and `&&` between them); everything else gets a clear compile error.
+Supported body syntax: straight-line integer arithmetic (`+`, `-`, `*`,
+`/`/`%` on unsigned operands, literals, `let` bindings, `let mut`
+accumulators with `+=`), `assert!`/`assert_eq!` comparisons (`>=`, `<=`, `>`,
+`<`, `==`, `!=`, conjunctions with `&&`), `if` statements and `if`/`else`
+expressions, and bounded `for` loops over literal ranges (unrolled).
+Everything else gets a clear compile error.
 
 ### 3. Real proofs with a backend adapter
 
@@ -180,18 +196,28 @@ cargo run -p tpt-axiom-examples --example backend_comparison      # both backend
 
 ### Choosing a backend
 
-`cargo bench -p tpt-axiom-backend-halo2 -p tpt-axiom-backend-arkworks` is the
-authoritative comparison; reference numbers for `prove_balance_transfer`
-(512 halo2 rows / 264 arkworks R1CS constraints) on a dev workstation:
+```sh
+cargo bench -p tpt-axiom-backend-halo2 -p tpt-axiom-backend-arkworks
+```
+
+is the authoritative comparison (criterion, default options, warm-up +
+3 s measurement per scenario: `balance_transfer/{compile,keygen,prove,verify}`
+plus a size report). Reference numbers for `prove_balance_transfer`
+(512 halo2 rows / 264 arkworks R1CS constraints) on the dev machine used for
+the numbers below — an AMD Ryzen 9 7950X, 64 GiB RAM, Windows 11, rustc
+1.89 (the `rust-toolchain.toml` pin), release profile with debug assertions
+off:
 
 | Backend            | Setup (keygen) | Prove   | Verify  |
 | ------------------ | -------------- | ------- | ------- |
 | halo2 (IPA/Vesta)  | ≈ 17 ms     | ≈ 8 ms  | ≈ 3 ms  |
 | arkworks (Groth16) | ≈ 414 ms    | ≈ 338 ms | ≈ 10 ms |
 
-halo2 wins on proving speed and has no per-circuit trusted setup; arkworks
-Groth16 produces the smallest verifiable objects with canonical key
-serialization (but needs a honest per-circuit setup ceremony).
+Numbers scale with circuit size and CPU single-core speed; treat them as
+order-of-magnitude guidance and re-bench on your target hardware. halo2 wins
+on proving speed and has no per-circuit trusted setup; arkworks Groth16
+produces the smallest verifiable objects with canonical key serialization
+(but needs an honest per-circuit setup ceremony).
 
 ## Workspace layout
 
@@ -207,6 +233,9 @@ serialization (but needs a honest per-circuit setup ceremony).
 | `tpt-axiom-backend-sp1`      | SP1 zkVM adapter contract (proving deferred)                         |
 | `tpt-axiom-cli`              | Build-time driver (`axiom` binary)                                   |
 | `tpt-axiom-interop`          | Augur/inference conversions + external-engine interfaces             |
+| `tpt-axiom-examples`         | All worked examples (run with `-p tpt-axiom-examples --example …`)   |
+| `tpt-axiom-wasm`             | The browser playground's WASM modules (`docs/playground/`)           |
+| `tpt-axiom-template`         | `cargo generate` starter template (outside the workspace)            |
 | `tpt-axiom`                  | Umbrella crate: the `prelude`, feature-gated re-exports              |
 
 ## Contributing

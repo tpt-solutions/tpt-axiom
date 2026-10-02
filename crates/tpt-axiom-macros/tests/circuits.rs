@@ -433,6 +433,8 @@ fn if_statement_lowers_to_gated_constraints() {
 }
 
 #[zk_provable(backend = "arkworks")]
+#[allow(clippy::let_and_return, clippy::bool_to_int_with_if)] // kept-fn shape is the point
+#[allow(clippy::missing_const_for_fn)] // ...and fixed by the macro
 fn threshold_classify(#[secret] score: i64, #[public] cutoff: i64) -> i64 {
     let label = if score >= cutoff { 1 } else { 0 };
     label
@@ -459,8 +461,8 @@ fn weighted_sum_unrolled(#[secret] x: i64, #[public] total: i64) {
 
 #[test]
 fn bounded_for_unrolls_with_an_accumulator() {
-    // 1x + 2x + 3x + 4x = 10x.
-    assert_eq!(weighted_sum_unrolled(7, 70), ());
+    // 1x + 2x + 3x + 4x = 10x; the kept original asserts internally.
+    weighted_sum_unrolled(7, 70);
     let ir = WeightedSumUnrolled.build();
     assert!(ir.validate().is_ok());
     assert_eq!(ir.num_free(), 0, "loops need no selectors");

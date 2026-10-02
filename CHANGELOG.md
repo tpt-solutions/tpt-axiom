@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Free-witness gadgets — the IR gains *free (aux) witness variables*
+  (`ConstraintSystemBuilder::free_bool`): circuit-internal selector bits that
+  are secret-visibility but deliberately not named inputs. The prove driver
+  solves them by exhaustive search over their domain
+  (`witness::solve_free_variables`, capped at 16 variables), and every
+  backend range-checks them against their declared 1-bit type regardless.
+  Built on that:
+  - `assert!(a != b)` — the inequality gadget (booleanity + two gated range
+    checks); a false equality satisfies neither arm, so it cannot prove.
+  - `if` statements and `if`/`else` expressions — both arms lower and are
+    gated by a selector pinned to the condition's truth; unselected
+    constraints become identically-zero vacuities. All six comparison
+    operators work as conditions.
+  - bounded `for i in a..b` / `a..=b` loops (literal bounds, unrolled,
+    capped at 1 024 iterations) with `let mut` accumulators
+    (`acc += …` / `-=`, `*=` rebind as fresh SSA values).
+  Free variables ride the secret-witness slice's tail; `NamedWitness` rejects
+  them as inputs and `ir_digest` commits to them, so a de-gadgeted circuit
+  can never re-verify a gadgeted proof.
 - Phase C typed proving path: `#[zk_provable]` now generates a `<Fn>Inputs`
   struct carrying one field per parameter at its declared Rust type, with
   `new(..)`, `public_names()`, `secret_names()`, `named()` and, for returning

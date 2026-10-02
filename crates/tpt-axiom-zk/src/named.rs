@@ -196,9 +196,11 @@ impl NamedWitness {
 
 /// A resolved witness: positional public and secret slices in IR declaration
 /// order, exactly the shape [`witness::check`](crate::witness::check) and
-/// [`ZkBackend::prove`](crate::ZkBackend::prove) consume. Any solved free
-/// (aux) witness values ride alongside; [`Self::secret_with_aux`] appends
-/// them in the tail order the backend expects.
+/// [`ZkBackend::prove`](crate::ZkBackend::prove) consume.
+///
+/// Any solved free (aux) witness values ride alongside;
+/// [`Self::secret_with_aux`] appends them in the tail order the backend
+/// expects.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct WitnessValues {
     /// Public inputs, in declaration order.
@@ -485,6 +487,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::many_single_char_names)] // l/r/d/s mirror the gadget algebra
     fn free_variables_are_solved_not_supplied() {
         // The exact IR `assert!(l != r)` lowers to (see conformance).
         let mut b = ConstraintSystemBuilder::new("ne");

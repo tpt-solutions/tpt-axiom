@@ -276,10 +276,7 @@ impl core::fmt::Display for EvaluationError {
                 lhs,
                 rhs,
                 out,
-            } => write!(
-                f,
-                "gate #{index} failed: {lhs} * {rhs} != {out}"
-            ),
+            } => write!(f, "gate #{index} failed: {lhs} * {rhs} != {out}"),
             Self::NonNegativeFailed { slot, value } => {
                 write!(f, "witness slot {slot} is negative ({value})")
             }
@@ -420,9 +417,8 @@ mod tests {
                             .iter()
                             .position(|&s| Some(s) == r1cs.var_slots[v])
                             .unwrap_or_else(|| panic!("unclassified variable {v}"));
-                        *aux.get(idx).unwrap_or_else(|| {
-                            panic!("free variable {v} has no solved value")
-                        })
+                        *aux.get(idx)
+                            .unwrap_or_else(|| panic!("free variable {v} has no solved value"))
                     }
                 }
                 Expr::Add(l, r) => {

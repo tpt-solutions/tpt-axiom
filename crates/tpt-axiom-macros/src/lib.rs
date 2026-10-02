@@ -58,13 +58,27 @@
 //!   types are integer primitives;
 //! * straight-line `let` bindings built from `+`, `-`, `*`, parentheses, unary
 //!   `-` and integer literals;
+//! * `let mut` accumulators with `acc = …` / `+=` / `-=` / `*=` — each
+//!   assignment becomes a fresh value in the circuit;
 //! * `assert!(a >= b)` / `assert!(a <= b)` / `assert!(a > b)` /
-//!   `assert!(a < b)` / `assert!(a == b)` comparisons;
-//! * `assert_eq!(l, r)`; and
+//!   `assert!(a < b)` / `assert!(a == b)` / `assert!(a != b)` comparisons
+//!   (conjunctions with `&&`; `!=` through the inequality gadget below);
+//! * `assert_eq!(l, r)`;
+//! * `if` statements and `if`/`else` expressions over comparison conditions
+//!   (lowered through selector gadgets; both arms are computed and gated);
+//! * bounded `for i in a..b` (or `a..=b`) loops with literal bounds,
+//!   unrolled; and
 //! * an optional single integer `return`, which becomes a public output.
 //!
-//! Everything else — control flow, dynamic allocation, function/method calls,
-//! trait objects, closures — produces a compile-time error.
+//! `!=`, `if` and the pinning half of conditional selectors use *free
+//! witness* variables: circuit-internal selector bits the prover never
+//! supplies. The prove driver solves them by search over `{0, 1}`, and the
+//! backends range-check them against their declared 1-bit type regardless,
+//! so a false inequality or a wrong branch cannot prove.
+//!
+//! Everything else — early returns, signed division, loops with runtime
+//! bounds, dynamic allocation, function/method calls, trait objects,
+//! closures — produces a compile-time error.
 
 use proc_macro::TokenStream;
 use proc_macro2::Span;
