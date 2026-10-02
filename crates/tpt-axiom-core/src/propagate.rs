@@ -49,8 +49,14 @@ pub fn monte_carlo<T>(
 where
     T: Float + FromPrimitive,
 {
-    let (ma, sa) = (a.mean().to_f64().unwrap_or(0.0), a.standard_deviation().to_f64().unwrap_or(0.0));
-    let (mb, sb) = (b.mean().to_f64().unwrap_or(0.0), b.standard_deviation().to_f64().unwrap_or(0.0));
+    let (ma, sa) = (
+        a.mean().to_f64().unwrap_or(0.0),
+        a.standard_deviation().to_f64().unwrap_or(0.0),
+    );
+    let (mb, sb) = (
+        b.mean().to_f64().unwrap_or(0.0),
+        b.standard_deviation().to_f64().unwrap_or(0.0),
+    );
     let mut count = 0_usize;
     let mut mean = T::zero();
     let mut m2 = T::zero();

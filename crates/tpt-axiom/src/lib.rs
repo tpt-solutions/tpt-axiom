@@ -23,11 +23,11 @@ pub mod audit;
 /// The `tpt-axiom` prelude, matching the spec's `use tpt_axiom::prelude::*;`.
 pub mod prelude {
     pub use tpt_axiom_core::{
-        AbstentionReason, Bernoulli, BinaryDecision, Calibration, Categorical, Confidence,
-        Decision, DecisionRecord, Distribution, Escalation, Evidence, Fuzzy, Hypotheses,
-        MultiLabelDecision, Probability, Provenance, Ranking, Reproducibility, Score, Uncertain,
-        Beta, Binomial, ContinuousDistribution, DiscreteDistribution, Gamma, LogNormal,
-        Poisson, StudentT, Uniform, Validate, classify_by_confidence, softmax, stats,
+        AbstentionReason, Bernoulli, Beta, BinaryDecision, Binomial, Calibration, Categorical,
+        Confidence, ContinuousDistribution, Decision, DecisionRecord, DiscreteDistribution,
+        Distribution, Escalation, Evidence, Fuzzy, Gamma, Hypotheses, LogNormal,
+        MultiLabelDecision, Poisson, Probability, Provenance, Ranking, Reproducibility, Score,
+        StudentT, Uncertain, Uniform, Validate, classify_by_confidence, softmax, stats,
     };
     pub use tpt_axiom_ir::{ConstraintSystem, ConstraintSystemBuilder, Scalar};
     pub use tpt_axiom_macros::zk_provable;

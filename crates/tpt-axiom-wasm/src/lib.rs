@@ -27,9 +27,8 @@ pub fn circuit_catalog() -> String {
 /// `ConstraintSystem::describe` (inputs, types, constraints).
 #[wasm_bindgen]
 pub fn circuit_describe(name: &str) -> Result<String, JsValue> {
-    let ir = demo_ir(name).ok_or_else(|| {
-        JsValue::from_str("unknown circuit; see circuit_catalog()")
-    })?;
+    let ir =
+        demo_ir(name).ok_or_else(|| JsValue::from_str("unknown circuit; see circuit_catalog()"))?;
     Ok(ir.describe())
 }
 
@@ -37,11 +36,10 @@ pub fn circuit_describe(name: &str) -> Result<String, JsValue> {
 /// secret slots (the reference lowering in `tpt-axiom-ir`).
 #[wasm_bindgen]
 pub fn circuit_r1cs_shape(name: &str) -> Result<String, JsValue> {
-    let ir = demo_ir(name).ok_or_else(|| {
-        JsValue::from_str("unknown circuit; see circuit_catalog()")
-    })?;
-    let r1cs = tpt_axiom_ir::r1cs::lower_r1cs(&ir)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let ir =
+        demo_ir(name).ok_or_else(|| JsValue::from_str("unknown circuit; see circuit_catalog()"))?;
+    let r1cs =
+        tpt_axiom_ir::r1cs::lower_r1cs(&ir).map_err(|e| JsValue::from_str(&e.to_string()))?;
     Ok(format!(
         "gates: {}\nwitness slots (incl. const 1): {}\npublic slots: {}\nsecret slots: {}",
         r1cs.gates.len(),
@@ -65,7 +63,9 @@ pub fn fuse_demo(
         if v.is_finite() && v >= 0.0 {
             Ok(())
         } else {
-            Err(JsValue::from_str(&format!("{what} must be finite and non-negative")))
+            Err(JsValue::from_str(&format!(
+                "{what} must be finite and non-negative"
+            )))
         }
     };
     validate(a_variance, "a_variance")?;

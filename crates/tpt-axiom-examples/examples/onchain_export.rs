@@ -140,8 +140,7 @@ fn main() {
     assert!(backend.verify(&vk, &[50, 20], &proof).expect("verify"));
 
     std::fs::create_dir_all("contracts/test").expect("create contracts dir");
-    std::fs::write("contracts/Groth16Verifier.sol", verifier_source(&vk))
-        .expect("write verifier");
+    std::fs::write("contracts/Groth16Verifier.sol", verifier_source(&vk)).expect("write verifier");
 
     // The exact pairing input the Solidity contract will hand to precompile
     // 0x0f. Emitted here (same run, same keys, same proof) and embedded in
@@ -166,8 +165,8 @@ fn main() {
     for b in &input {
         write!(hex, "{b:02x}").unwrap();
     }
-    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/pairing_input.txt");
+    let fixture =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/pairing_input.txt");
     std::fs::write(&fixture, hex).expect("write fixture");
 
     std::fs::write(
@@ -176,9 +175,7 @@ fn main() {
     )
     .expect("write test");
 
-    println!(
-        "wrote contracts/Groth16Verifier.sol + contracts/test/Groth16Verifier.t.sol"
-    );
+    println!("wrote contracts/Groth16Verifier.sol + contracts/test/Groth16Verifier.t.sol");
     println!("next: cd contracts && forge test");
 }
 

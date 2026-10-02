@@ -36,7 +36,11 @@ use tpt_axiom::prelude::*;
 /// Posterior probability that variant B's rate exceeds variant A's, by
 /// Simpson-rule quadrature over a grid (accurate to ~1e-5 for the smooth
 /// posteriors an A/B test produces; the example says so, loudly).
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
 fn prob_b_beats_a(a: &Beta, b: &Beta) -> f64 {
     let steps = 400_usize;
     let h = 1.0 / steps as f64;
@@ -87,7 +91,10 @@ fn main() {
         "KEEP RUNNING — P(B > A) below the 0.95 bar"
     };
     println!("decision  : {decision}");
-    assert!(p_beats >= ship_bar, "128/1000 vs 156/1000 must clear the bar");
+    assert!(
+        p_beats >= ship_bar,
+        "128/1000 vs 156/1000 must clear the bar"
+    );
 
     // --- thin evidence ------------------------------------------------------
     println!("\n(thin evidence: 13/100 vs 15/100)");
@@ -95,7 +102,11 @@ fn main() {
     let b2 = report("variant B'", 15, 100, &prior);
     let p2 = prob_b_beats_a(&a2, &b2);
     println!("P(B' > A') : {p2:.3}");
-    let decision2 = if p2 >= ship_bar { "SHIP B'" } else { "KEEP RUNNING — P(B'>A') below the 0.95 bar" };
+    let decision2 = if p2 >= ship_bar {
+        "SHIP B'"
+    } else {
+        "KEEP RUNNING — P(B'>A') below the 0.95 bar"
+    };
     println!("decision   : {decision2}");
     assert!(p2 < ship_bar, "thin evidence must not ship");
 }

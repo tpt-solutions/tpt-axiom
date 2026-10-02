@@ -63,7 +63,11 @@ fn g1_from_bytes(bytes: &[u8]) -> G1 {
     if bytes.iter().all(|&b| b == 0) {
         return G1::identity();
     }
-    G1 { x, y, infinity: false }
+    G1 {
+        x,
+        y,
+        infinity: false,
+    }
 }
 
 fn g2_from_bytes(bytes: &[u8]) -> G2 {
@@ -143,22 +147,16 @@ fn the_contract_pairing_input_satisfies_groth16_in_ark() {
         let ark_vkx: G1 = (vk.gamma_abc_g1[0]
             + (vk.gamma_abc_g1[1] * ark_bls12_381::Fr::from(50u64))
             + (vk.gamma_abc_g1[2] * ark_bls12_381::Fr::from(20u64)))
-            .into();
+        .into();
         assert_eq!(p3, ark_vkx, "vkx mismatch");
-        let product = Bls12_381::multi_pairing(
-            [p1, p2, p3, p4],
-            [q1, q2, q3, q4],
-        );
+        let product = Bls12_381::multi_pairing([p1, p2, p3, p4], [q1, q2, q3, q4]);
         let product_is_one = product.is_zero();
         // Negation sanity: the un-negated equation must NOT hold.
         let without_neg = Bls12_381::multi_pairing(
             [inner.a, vk.alpha_g1, vkx, inner.c],
             [inner.b, vk.beta_g2, vk.gamma_g2, vk.delta_g2],
         );
-        assert!(
-            !without_neg.is_zero(),
-            "un-negated product must not be one"
-        );
+        assert!(!without_neg.is_zero(), "un-negated product must not be one");
         assert!(
             product_is_one,
             "the contract's pairing input must satisfy Groth16"

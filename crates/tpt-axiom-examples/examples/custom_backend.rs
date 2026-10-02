@@ -236,9 +236,7 @@ fn main() {
         .prove(&circuit, &pk, &[50, 20], &[30])
         .expect("honest witness must prove");
     let ok = backend.verify(&vk, &[50, 20], &proof).expect("verdict");
-    println!(
-        "proved with witness [50, 20, 30, ..]; proof verifies: {ok}"
-    );
+    println!("proved with witness [50, 20, 30, ..]; proof verifies: {ok}");
     assert!(ok);
 
     let err = backend

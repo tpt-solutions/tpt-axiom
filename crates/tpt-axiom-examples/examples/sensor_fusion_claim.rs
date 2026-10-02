@@ -88,9 +88,7 @@ fn main() {
     let (mean_b, sigma_b) = (10.700_f64, 0.300_f64);
     let threshold = 10.000_f64;
 
-    println!(
-        "sensors (secret) : A = {mean_a:.3} ± {sigma_a:.3}, B = {mean_b:.3} ± {sigma_b:.3}"
-    );
+    println!("sensors (secret) : A = {mean_a:.3} ± {sigma_a:.3}, B = {mean_b:.3} ± {sigma_b:.3}");
 
     // Fixed-point encodings: means in milli-units, variances in micro-units².
     let ma = (mean_a * SCALE as f64).round() as i64;
@@ -103,8 +101,7 @@ fn main() {
     let fused = tpt_axiom_core::Fuzzy::new(mean_a, sigma_a * sigma_a)
         .fuse(&tpt_axiom_core::Fuzzy::new(mean_b, sigma_b * sigma_b));
     let reported_mean = (fused.mean() * SCALE as f64).round() as i64;
-    let reported_variance =
-        (fused.variance() * (SCALE * SCALE) as f64).round() as i64;
+    let reported_variance = (fused.variance() * (SCALE * SCALE) as f64).round() as i64;
 
     println!(
         "published (public): fused = {:.3} (var {reported_variance}e-6), threshold = {threshold:.3}",
@@ -120,7 +117,11 @@ fn main() {
     let ir = ProveFusedEstimate.build();
     let circuit = backend.compile(&ir).expect("compile");
     let (pk, vk) = backend.generate_keys(&ir, &[]).expect("keys");
-    let publics: [i64; 3] = [reported_mean, reported_variance, (threshold * SCALE as f64) as i64];
+    let publics: [i64; 3] = [
+        reported_mean,
+        reported_variance,
+        (threshold * SCALE as f64) as i64,
+    ];
     let secrets: [i64; 4] = [ma, va, mb, vb];
 
     let proof = backend

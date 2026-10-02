@@ -96,17 +96,15 @@ fn main() -> std::io::Result<()> {
         // refused before any proving work.
         let witness: tpt_axiom_zk::named::NamedWitness =
             serde_json::from_str(&request).expect("witness JSON");
-        let claim = tpt_axiom_zk::driver::prove_named(
-            &backend,
-            &ProveBalanceTransfer,
-            &pk,
-            &witness,
-        )
-        .expect("honest witness must prove");
+        let claim =
+            tpt_axiom_zk::driver::prove_named(&backend, &ProveBalanceTransfer, &pk, &witness)
+                .expect("honest witness must prove");
         let envelope = claim.to_envelope(&backend).expect("halo2 proofs are bytes");
         let body = serde_json::to_vec(&envelope).expect("serialize envelope");
         write_all(&mut stream, &body).expect("prover write");
-        stream.shutdown(std::net::Shutdown::Write).expect("shutdown");
+        stream
+            .shutdown(std::net::Shutdown::Write)
+            .expect("shutdown");
     });
 
     // --- verifier service: envelope JSON in, verdict line out ------------
@@ -134,7 +132,9 @@ fn main() -> std::io::Result<()> {
                 "REJECT (proof does not match the claimed publics)"
             };
             writeln!(stream, "{verdict}").expect("verifier write");
-            stream.shutdown(std::net::Shutdown::Write).expect("shutdown");
+            stream
+                .shutdown(std::net::Shutdown::Write)
+                .expect("shutdown");
             println!("verifier: {line}");
         }
     });
@@ -145,10 +145,13 @@ fn main() -> std::io::Result<()> {
         .with("sender_balance", 50_i64)
         .with("receiver_balance", 20_i64)
         .with("amount", 30_i64);
-    println!(
-        "client: witness {{sender_balance: 50, receiver_balance: 20, amount: 30}}"
-    );
-    write_all(&mut prover_stream, serde_json::to_string(&witness).expect("serialize").as_bytes())?;
+    println!("client: witness {{sender_balance: 50, receiver_balance: 20, amount: 30}}");
+    write_all(
+        &mut prover_stream,
+        serde_json::to_string(&witness)
+            .expect("serialize")
+            .as_bytes(),
+    )?;
     prover_stream.shutdown(std::net::Shutdown::Write)?;
     let mut response = String::new();
     prover_stream.read_to_string(&mut response)?;
@@ -163,7 +166,10 @@ fn main() -> std::io::Result<()> {
     verifier_stream.shutdown(std::net::Shutdown::Write)?;
     let mut verdict = String::new();
     verifier_stream.read_to_string(&mut verdict)?;
-    assert!(verdict.starts_with("true"), "honest claim must be accepted: {verdict}");
+    assert!(
+        verdict.starts_with("true"),
+        "honest claim must be accepted: {verdict}"
+    );
 
     // Tampering: claim a different receiver balance. The envelope's proof
     // is bound to the original publics, so the verifier refuses it.
@@ -171,11 +177,17 @@ fn main() -> std::io::Result<()> {
     tampered.publics[1] = 21;
     println!("client: tampered envelope (receiver_balance 20 -> 21) -> forwarded");
     let mut verifier_stream = TcpStream::connect(verifier_addr)?;
-    write_all(&mut verifier_stream, &serde_json::to_vec(&tampered).expect("serialize"))?;
+    write_all(
+        &mut verifier_stream,
+        &serde_json::to_vec(&tampered).expect("serialize"),
+    )?;
     verifier_stream.shutdown(std::net::Shutdown::Write)?;
     let mut verdict2 = String::new();
     verifier_stream.read_to_string(&mut verdict2)?;
-    assert!(verdict2.starts_with("false"), "tampered envelope must be refused");
+    assert!(
+        verdict2.starts_with("false"),
+        "tampered envelope must be refused"
+    );
 
     prover_handle.join().expect("prover thread");
     verifier_handle.join().expect("verifier thread");

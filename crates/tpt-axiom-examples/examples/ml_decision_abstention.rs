@@ -37,11 +37,7 @@ const REVIEW_AT: f64 = 0.60;
 
 fn decide(topic: &str, logits: &[f64; 3], outcomes: [&str; 3]) -> Escalation {
     // 1. Normalize raw logits into a validated, normalized distribution.
-    let scores: Vec<(&str, f64)> = outcomes
-        .iter()
-        .copied()
-        .zip(softmax(logits, 1.0))
-        .collect();
+    let scores: Vec<(&str, f64)> = outcomes.iter().copied().zip(softmax(logits, 1.0)).collect();
     let dist = Categorical::new_strict(scores).expect("finite positive weights");
 
     print!("{topic:<12}: ");
@@ -64,7 +60,10 @@ fn decide(topic: &str, logits: &[f64; 3], outcomes: [&str; 3]) -> Escalation {
             let decision: Decision<&str> = dist.decide(commit_at);
             println!(
                 "decision    : COMMIT {best:?} at {:.3}",
-                decision.committed().map(|_| confidence.value()).unwrap_or_default()
+                decision
+                    .committed()
+                    .map(|_| confidence.value())
+                    .unwrap_or_default()
             );
             Escalation::Accept
         }

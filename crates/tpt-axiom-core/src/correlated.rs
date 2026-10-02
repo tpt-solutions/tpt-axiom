@@ -117,7 +117,8 @@ impl Correlated {
                 }
             }
         }
-        cholesky_pivot(&cov).map_err(|pivot| CorrelationError::NotPositiveSemidefinite { pivot })?;
+        cholesky_pivot(&cov)
+            .map_err(|pivot| CorrelationError::NotPositiveSemidefinite { pivot })?;
         Ok(Self { means, cov })
     }
 
@@ -153,7 +154,10 @@ impl Correlated {
         }
         Self::new(
             vec![m1, m2],
-            vec![vec![v1, corr * (v1 * v2).sqrt()], vec![corr * (v1 * v2).sqrt(), v2]],
+            vec![
+                vec![v1, corr * (v1 * v2).sqrt()],
+                vec![corr * (v1 * v2).sqrt(), v2],
+            ],
         )
     }
 
@@ -273,13 +277,8 @@ fn cholesky_pivot(m: &[Vec<f64>]) -> Result<f64, usize> {
     let mut l = vec![vec![0.0; n]; n];
     for i in 0..n {
         for j in 0..=i {
-            let sum = m[i][j]
-                - (0..j).map(|k| l[i][k] * l[j][k]).sum::<f64>();
-            let pivot = if i == j {
-                sum
-            } else {
-                sum / l[j][j]
-            };
+            let sum = m[i][j] - (0..j).map(|k| l[i][k] * l[j][k]).sum::<f64>();
+            let pivot = if i == j { sum } else { sum / l[j][j] };
             l[i][j] = pivot;
         }
         // Relative tolerance: a matrix that is PSD up to rounding passes.
@@ -290,7 +289,10 @@ fn cholesky_pivot(m: &[Vec<f64>]) -> Result<f64, usize> {
         }
         l[i][i] = l[i][i].max(0.0);
     }
-    Ok(l.iter().map(|row| row[0]).fold(f64::INFINITY, f64::min).max(0.0))
+    Ok(l.iter()
+        .map(|row| row[0])
+        .fold(f64::INFINITY, f64::min)
+        .max(0.0))
 }
 
 #[cfg(test)]
@@ -355,11 +357,8 @@ mod tests {
     #[test]
     fn non_psd_matrix_is_rejected() {
         // Correlation 2 is impossible.
-        let err = Correlated::new(
-            vec![0.0, 0.0],
-            vec![vec![1.0, 2.0], vec![2.0, 1.0]],
-        )
-        .unwrap_err();
+        let err =
+            Correlated::new(vec![0.0, 0.0], vec![vec![1.0, 2.0], vec![2.0, 1.0]]).unwrap_err();
         assert_eq!(
             err,
             CorrelationError::NotPositiveSemidefinite { pivot: 1 },
@@ -374,11 +373,17 @@ mod tests {
     fn malformed_inputs_are_rejected() {
         assert_eq!(
             Correlated::independent(&[1.0], &[1.0, 2.0]).unwrap_err(),
-            CorrelationError::DimensionMismatch { expected: 1, got: 2 }
+            CorrelationError::DimensionMismatch {
+                expected: 1,
+                got: 2
+            }
         );
         assert_eq!(
             Correlated::new(vec![1.0], vec![vec![1.0, 0.5]]).unwrap_err(),
-            CorrelationError::DimensionMismatch { expected: 1, got: 1 }
+            CorrelationError::DimensionMismatch {
+                expected: 1,
+                got: 1
+            }
         );
         assert_eq!(
             Correlated::independent(&[1.0], &[-1.0]).unwrap_err(),
@@ -386,19 +391,17 @@ mod tests {
         );
         assert!(Correlated::independent(&[f64::NAN], &[1.0]).is_err());
         assert_eq!(
-            Correlated::new(
-                vec![0.0, 0.0],
-                vec![vec![1.0, 0.5], vec![0.9, 1.0]],
-            )
-            .unwrap_err(),
+            Correlated::new(vec![0.0, 0.0], vec![vec![1.0, 0.5], vec![0.9, 1.0]],).unwrap_err(),
             CorrelationError::NotSymmetric
         );
         // Non-finite covariance entry.
-        assert!(Correlated::new(
-            vec![0.0, 0.0],
-            vec![vec![1.0, f64::NAN], vec![f64::NAN, 1.0]],
-        )
-        .is_err());
+        assert!(
+            Correlated::new(
+                vec![0.0, 0.0],
+                vec![vec![1.0, f64::NAN], vec![f64::NAN, 1.0]],
+            )
+            .is_err()
+        );
     }
 
     #[test]

@@ -84,7 +84,10 @@ fn main() {
         .prove(&circuit, &pk, &publics, &secrets)
         .expect("an honest applicant must prove");
     let accepted = backend.verify(&vk, &publics, &proof).expect("verdict");
-    println!("prover: score = {score} (never published); proof {} bytes", proof.0.len());
+    println!(
+        "prover: score = {score} (never published); proof {} bytes",
+        proof.0.len()
+    );
     println!(
         "verifier: {}",
         if accepted {

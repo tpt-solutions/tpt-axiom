@@ -40,10 +40,10 @@ pub mod propagate;
 mod quants;
 pub mod special;
 
+pub use crate::correlated::{Correlated, CorrelationError};
 pub use crate::decision_types::{
     BinaryDecision, Calibration, DecisionRecord, Hypotheses, MultiLabelDecision, Ranking,
 };
-pub use crate::correlated::{Correlated, CorrelationError};
 pub use crate::distribution::{Distribution, InvalidVariance};
 pub use crate::families::{
     Beta, Binomial, ContinuousDistribution, DiscreteDistribution, DomainError, Gamma, LogNormal,
