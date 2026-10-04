@@ -6,7 +6,10 @@
 //! in `core` so pipelines that produce logits directly (not through the
 //! engine boundary) share one tested implementation.
 
+// Without std, the f64 float methods come from num-traits (libm).
 use alloc::vec::Vec;
+#[cfg(not(feature = "std"))]
+use num_traits::Float as _;
 
 /// Numerically stable temperature softmax over logits.
 ///

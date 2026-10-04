@@ -29,9 +29,12 @@
 #![allow(clippy::cast_precision_loss)]
 #![allow(clippy::float_cmp)]
 
+// Without std, the f64 float methods come from num-traits (libm).
 use crate::special::{beta_reg, gamma_p, gamma_q, lgamma};
 use core::f64::consts::PI;
 use core::fmt;
+#[cfg(not(feature = "std"))]
+use num_traits::Float as _;
 
 /// A parameter was outside the domain its family's math requires.
 #[derive(Clone, Copy, Debug, PartialEq)]

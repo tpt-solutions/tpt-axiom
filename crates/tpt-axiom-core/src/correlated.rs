@@ -17,9 +17,12 @@
 //! are tracked in `todo.md` (Phase D). Everything here is exact linear
 //! algebra under the Gaussian model.
 
+// Without std, the f64 float methods come from num-traits (libm).
 use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
+#[cfg(not(feature = "std"))]
+use num_traits::Float as _;
 
 use crate::Fuzzy;
 

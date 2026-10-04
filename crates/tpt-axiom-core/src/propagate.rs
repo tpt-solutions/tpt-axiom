@@ -39,6 +39,7 @@ fn standard_draw(uniform: f64) -> f64 {
 /// reproducible; across seeds it scatters at the usual `1/√samples` rate —
 /// treat the variance as having ~`2/samples` relative noise.
 #[must_use]
+#[allow(clippy::many_single_char_names)] // a/b inputs and f, mirroring the math
 pub fn monte_carlo<T>(
     a: &Fuzzy<T>,
     b: &Fuzzy<T>,
@@ -92,6 +93,7 @@ where
 /// accurate in the mean — for `f = exp`, the UT mean lands far closer to
 /// the exact lognormal mean `e^{m+v/2}` than the delta method's `e^m`.
 #[must_use]
+#[allow(clippy::many_single_char_names)] // a/b inputs and f, mirroring the math
 pub fn unscented<T>(a: &Fuzzy<T>, b: &Fuzzy<T>, f: impl Fn(T, T) -> T) -> Fuzzy<T>
 where
     T: Float + FromPrimitive,

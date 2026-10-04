@@ -16,7 +16,10 @@
 
 #![allow(clippy::excessive_precision)] // published Lanczos coefficients, digit for digit
 
+// Without std, the f64 float methods come from num-traits (libm).
 use core::f64::consts::PI;
+#[cfg(not(feature = "std"))]
+use num_traits::Float as _;
 
 /// Lanczos coefficients for g = 7, n = 9.
 const LANCZOS: [f64; 9] = [

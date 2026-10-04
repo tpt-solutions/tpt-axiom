@@ -7,3 +7,4 @@
 # publishable crates only.
 [toolchain]
 channel = "1.89.0"
+components = ["rustfmt", "clippy"]
