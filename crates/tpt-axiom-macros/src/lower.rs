@@ -1667,7 +1667,7 @@ fn validate_signature(func: &ItemFn) -> syn::Result<()> {
             "`async` functions cannot be circuits",
         ));
     }
-    if let Some(unsafety) = &sig.unsafety {
+    if let syn::Safety::Unsafe(unsafety) = &sig.safety {
         return Err(Error::new(
             unsafety.span(),
             "`unsafe` functions cannot be circuits",
