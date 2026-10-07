@@ -33,11 +33,10 @@ of the same plan — what to rely on now, and what is coming.
    nonlinear transforms on `Fuzzy` (exp/ln/sqrt with second-order
    correction), more distribution families (Uniform, Beta, Gamma, Poisson…)
    with `pdf`/`cdf`/`quantile`.
-4. **Verifiable intelligence** — prove a fused estimate or a decision meets
-   a threshold without revealing raw inputs; proof-carrying decision
-   records.
-5. **Reach** — SP1 zkVM adapter once its toolchain is distributable, WASM
-   in-browser circuit viewer, on-chain Groth16 verifier.
+4. **Verifiable intelligence** — nonlinear `Fuzzy` claims (e.g. proving an
+   `exp`-transformed estimate), which need nonlinear gadgets.
+5. **Reach** — SP1 zkVM adapter once its toolchain is distributable, a fuller
+   graphical WASM playground (proof *verification* already runs in-browser).
 
 ## Not planned (yet)
 

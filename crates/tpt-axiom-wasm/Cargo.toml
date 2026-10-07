@@ -17,7 +17,19 @@ tpt-axiom = { workspace = true }
 tpt-axiom-core = { workspace = true }
 tpt-axiom-ir = { workspace = true }
 tpt-axiom-zk = { workspace = true }
+tpt-axiom-backend-arkworks = { workspace = true }
+ark-bls12-381 = { workspace = true }
+ark-groth16 = { workspace = true }
+ark-relations = { workspace = true }
+ark-serialize = { workspace = true }
+ark-snark = { workspace = true }
 wasm-bindgen = "0.2"
+
+# Verification pulls in arkworks, whose `OsRng` reaches for `getrandom`. On
+# `wasm32-unknown-unknown` that only resolves with the `js` backend (WebCrypto),
+# so the dependency is declared per-target: it is never compiled natively.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
 
 # The playground lives behind a feature in CI; wasm builds are exercised by
 # `wasm-pack build` (see the book / playground README).

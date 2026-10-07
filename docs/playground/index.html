@@ -21,6 +21,11 @@
     border-radius: .3rem; background: transparent; color: inherit;
   }
   button { cursor: pointer; }
+  textarea {
+    font: ui-monospace, monospace; font-size: .78rem; width: 100%;
+    padding: .4rem .5rem; border: 1px solid #8886; border-radius: .3rem;
+    background: transparent; color: inherit; resize: vertical;
+  }
   pre {
     background: #8881; padding: .7rem .9rem; border-radius: .4rem;
     white-space: pre-wrap; font-size: .85rem; min-height: 1.2rem;
@@ -36,7 +41,8 @@
 <p class="muted">
   Everything runs locally in your browser over the same Rust crates the
   native examples use — no prover here (the proving stacks are
-  native-only), just the circuit IR and the uncertainty arithmetic.
+  native-only) — but proof *verification* does run in this page, over a real
+  Groth16 verifying key.
 </p>
 
 <h2>Circuit inspector</h2>
@@ -83,6 +89,28 @@
 </div>
 <pre id="exp-out"></pre>
 
+<h2>Verify a Groth16 proof in your browser</h2>
+<p class="muted">
+  Real proof verification, not a simulation: a BLS12-381 Groth16 pairing check
+  over a real verifying key, run locally in this page. The shipped demo is an
+  honest proof of <code>result == a * k</code> with <code>k</code> secret —
+  the verifier learns only <code>a = 2</code> and <code>result = 8</code>, never
+  <code>k</code>. Change the claimed result to 9 (or corrupt the proof) and the
+  verdict flips to <code>invalid</code>: that is soundness doing its job.
+</p>
+<div class="row">
+  <button id="load-proof">load demo proof</button>
+  <button id="verify-proof">verify</button>
+  <span class="muted" id="verify-verdict"></span>
+</div>
+<label for="vk">verifying key (hex, compressed)</label>
+<textarea id="vk" rows="3" spellcheck="false"></textarea>
+<label for="proof">proof (hex, compressed)</label>
+<textarea id="proof" rows="3" spellcheck="false"></textarea>
+<label for="publics">public inputs (comma-separated decimal i64)</label>
+<input id="publics" type="text" value="2, 8">
+<pre id="verify-out"></pre>
+
 <p class="muted">
   <strong>Not audited.</strong> Demonstration surface only — see the
   repository's SECURITY.md. Source:
@@ -92,7 +120,8 @@
 </p>
 
 <script type="module">
-  import init, { circuit_catalog, circuit_describe, circuit_r1cs_shape, fuse_demo, exp_demo }
+  import init, { circuit_catalog, circuit_describe, circuit_r1cs_shape, fuse_demo, exp_demo,
+    groth16_verify, demo_verifying_key_hex, demo_proof_hex, demo_public_inputs, demo_proof_info }
     from "./pkg/tpt_axiom_wasm.js";
   await init();
 
@@ -101,6 +130,7 @@
   const num = (id) => Number($(id).value);
 
   $("circuit-out").textContent = circuit_catalog();
+  $("load-proof").onclick();
 
   $("inspect").onclick = () => {
     const name = $("circuit").value;
@@ -116,6 +146,40 @@
       show("fuse-out", fuse_demo(num("am"), num("av"), num("bm"), num("bv")));
     } catch (e) {
       show("fuse-out", "error: " + e);
+    }
+  };
+
+  // Proof verification. The verdict element gets a class so the page shows
+  // accept/reject at a glance; the raw text stays in the pre block.
+  const verdict = (text, ok) => {
+    const el = $("verify-verdict");
+    el.textContent = text;
+    el.style.color = ok ? "#3a3" : "#c44";
+    el.style.fontWeight = "700";
+  };
+
+  $("load-proof").onclick = () => {
+    $("vk").value = demo_verifying_key_hex();
+    $("proof").value = demo_proof_hex();
+    $("publics").value = demo_public_inputs();
+    show("verify-out", demo_proof_info());
+    verdict("", true);
+  };
+
+  $("verify-proof").onclick = () => {
+    const t0 = performance.now();
+    try {
+      const result = groth16_verify($("vk").value, $("proof").value, $("publics").value);
+      const ms = (performance.now() - t0).toFixed(1);
+      verdict(result.toUpperCase(), result === "valid");
+      show("verify-out",
+        `verdict: ${result}\npairing check: ${ms} ms\n\n` +
+        `Soundness note: the secret multiplier k never left the prover. A valid\n` +
+        `verdict says only that some k makes a*k equal the claimed result — not\n` +
+        `which k.`);
+    } catch (e) {
+      verdict("ERROR", false);
+      show("verify-out", "rejected as a malformed artifact (not a proof at all):\n" + e);
     }
   };
 

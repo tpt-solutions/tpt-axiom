@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Browser proof verification: `tpt-axiom-wasm` grows a `verify` module with
+  `groth16_verify`, running the real BLS12-381 Groth16 pairing check over a
+  compressed verifying key and proof supplied as hex — so the playground can
+  verify a real proof locally (proving stays native; the prover stack is not
+  distributable to WASM). Malformed or truncated artifacts throw rather than
+  reporting a clean `false`, and a public-input count that disagrees with the
+  key is refused. The shipped demo proof (`result == a * k`, `k` secret, public
+  `a = 2`, `result = 8`) verifies, and claiming `result = 9` does not. Seven
+  native tests plus `docs/playground/smoke.mjs` (which drives the built
+  WebAssembly module under Node) cover it; CI builds the wasm and runs the
+  smoke test.
 - Documentation: the mdBook gains a Cookbook chapter (end-to-end recipes for
   range claims, `!=`, branchy policies, unrolled accumulators, derived-
   statistic claims, envelope shipping, and failing-prove triage), and

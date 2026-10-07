@@ -11,6 +11,8 @@ use wasm_bindgen::prelude::*;
 
 use tpt_axiom_ir::ConstraintSystemBuilder;
 
+pub mod verify;
+
 /// The demo circuits the playground can inspect, as `name: description`
 /// lines.
 #[wasm_bindgen]
@@ -119,7 +121,7 @@ pub fn exp_demo(mean: f64, variance: f64, samples: usize) -> Result<String, JsVa
 
 /// The named demo IRs, mirroring the conformance circuits plus the division
 /// gadget.
-fn demo_ir(name: &str) -> Option<tpt_axiom_ir::ConstraintSystem> {
+pub(crate) fn demo_ir(name: &str) -> Option<tpt_axiom_ir::ConstraintSystem> {
     let mut b = ConstraintSystemBuilder::new(name);
     let ir = match name {
         "balance_transfer" => {
