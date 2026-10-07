@@ -210,7 +210,7 @@ jobs:
       # the near-miss public input must not, and a truncated proof must throw
       # rather than pass.
       - run: wasm-pack build crates/tpt-axiom-wasm --target web --out-dir ../../docs/playground/pkg
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: node docs/playground/smoke.mjs
