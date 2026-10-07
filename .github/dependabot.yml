@@ -6,10 +6,28 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # halo2_proofs and arkworks are built on rand_core 0.6 (rand 0.8);
+      # rand 0.9+ is incompatible until those stacks move.
+      - dependency-name: "rand"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # The ark-* crates must move together; bump them by hand.
+      - dependency-name: "ark-*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # The halo2 stack (pasta_curves/ff/group/halo2_proofs) is versioned in
+      # lockstep with rand_core 0.6; bump it by hand as a unit.
+      - dependency-name: "halo2_proofs"
+      - dependency-name: "pasta_curves"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "ff"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "group"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
     groups:
-      minor-and-patch:
+      # In 0.x, a minor bump is breaking, so it must not ride along with
+      # (and block) the safe patch updates.
+      patch:
         update-types:
-          - "minor"
           - "patch"
   - package-ecosystem: github-actions
     directory: /
