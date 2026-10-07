@@ -33,6 +33,10 @@ ignore = [
     # ark-ff 0.5.x. It is a proc-macro used at compile time only; no runtime
     # exposure. Remove once the backend moves to arkworks 0.6.
     "RUSTSEC-2024-0436",
+    # derivative 2.2.0 is unmaintained (no safe upgrade) and is pulled in by
+    # ark-crypto-primitives 0.5.x. It is a proc-macro used at compile time
+    # only; no runtime exposure. Remove once the backend moves to arkworks 0.6.
+    "RUSTSEC-2024-0388",
 ]
 
 [sources]
