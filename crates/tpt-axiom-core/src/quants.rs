@@ -21,7 +21,7 @@ use core::f64::consts::{PI, SQRT_2};
 
 // In the `libm` (no_std) build the float methods come from the
 // `num_traits::Float` trait, not inherent `std` methods.
-#[cfg(all(not(feature = "std"), feature = "libm"))]
+#[allow(unused_imports)]
 use num_traits::Float;
 
 /// Error function `erf(x)`, full `f64` precision (see [`erfc`]).

@@ -21,7 +21,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
-#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
 use num_traits::Float as _;
 
 use crate::Fuzzy;

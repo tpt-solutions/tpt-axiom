@@ -25,6 +25,14 @@ wildcards = "deny"
 [advisories]
 version = 2
 yanked = "deny"
+ignore = [
+    # tracing-subscriber 0.2.25 is pulled in by ark-relations 0.5.x (the
+    # arkworks 0.5 line used by the backend). The ANSI-escape log injection
+    # only matters when untrusted input is logged through a fmt subscriber;
+    # this workspace installs no tracing subscriber. Remove once the backend
+    # moves to arkworks 0.6 (which drops the old tracing-subscriber).
+    "RUSTSEC-2025-0055",
+]
 
 [sources]
 unknown-registry = "deny"

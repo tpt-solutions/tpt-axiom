@@ -33,7 +33,7 @@
 use crate::special::{beta_reg, gamma_p, gamma_q, lgamma};
 use core::f64::consts::PI;
 use core::fmt;
-#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
 use num_traits::Float as _;
 
 /// A parameter was outside the domain its family's math requires.

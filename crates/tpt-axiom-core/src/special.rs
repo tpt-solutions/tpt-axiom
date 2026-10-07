@@ -18,7 +18,7 @@
 
 // Without std, the f64 float methods come from num-traits (libm).
 use core::f64::consts::PI;
-#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
 use num_traits::Float as _;
 
 /// Lanczos coefficients for g = 7, n = 9.
