@@ -15,3 +15,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # The tag of dtolnay/rust-toolchain IS the Rust version to install;
+      # bumping it picks a nonexistent toolchain. Keep in sync with
+      # rust-toolchain.toml manually.
+      - dependency-name: "dtolnay/rust-toolchain"

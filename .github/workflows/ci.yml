@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.120.0
+      - uses: dtolnay/rust-toolchain@1.89.0
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
@@ -36,7 +36,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.120.0
+      - uses: dtolnay/rust-toolchain@1.89.0
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
@@ -51,7 +51,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.120.0
+      - uses: dtolnay/rust-toolchain@1.89.0
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace --all-targets --all-features
       - run: cargo test --workspace --doc
@@ -88,7 +88,7 @@ jobs:
       # The declared MSRV must hold for the publishable foundation crate
       # (dev-dependencies are exempt from MSRV and need a newer rustc, so
       # only library targets are checked here).
-      - uses: dtolnay/rust-toolchain@1.120.0
+      - uses: dtolnay/rust-toolchain@1.89.0
       - uses: Swatinem/rust-cache@v2
       - run: cargo check -p tpt-axiom-core
       - run: cargo check -p tpt-axiom-core --features serde
@@ -103,7 +103,7 @@ jobs:
       RUSTDOCFLAGS: "-D warnings"
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.120.0
+      - uses: dtolnay/rust-toolchain@1.89.0
       - uses: Swatinem/rust-cache@v2
       - run: cargo doc --no-deps --workspace --all-features
 
@@ -120,7 +120,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.120.0
+      - uses: dtolnay/rust-toolchain@1.89.0
       - uses: Swatinem/rust-cache@v2
       # Only tpt-axiom-ir has no unpublished workspace dependencies, so it
       # is the only crate that can be fully dry-run before the first
@@ -138,7 +138,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.120.0
+      - uses: dtolnay/rust-toolchain@1.89.0
       - uses: Swatinem/rust-cache@v2
       - run: cargo bench --no-run --workspace
 
@@ -151,7 +151,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.120.0
+      - uses: dtolnay/rust-toolchain@1.89.0
       - uses: Swatinem/rust-cache@v2
       - uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
@@ -164,7 +164,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.120.0
+      - uses: dtolnay/rust-toolchain@1.89.0
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-hack
       # The foundation's feature matrix is small and every combination must
@@ -187,7 +187,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.120.0
+      - uses: dtolnay/rust-toolchain@1.89.0
       - uses: Swatinem/rust-cache@v2
       - uses: foundry-rs/foundry-toolchain@v1
       # Regenerate the verifier + proof from a fresh arkworks run, then
@@ -200,7 +200,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.120.0
+      - uses: dtolnay/rust-toolchain@1.89.0
       - uses: Swatinem/rust-cache@v2
       - uses: jetli/wasm-pack-action@v0.4.0
         with:
@@ -222,7 +222,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.120.0
+      - uses: dtolnay/rust-toolchain@1.89.0
         with:
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@v2
