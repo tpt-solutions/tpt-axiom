@@ -23,7 +23,7 @@ halo2_proofs = { workspace = true }
 pasta_curves = { workspace = true }
 ff = { workspace = true }
 group = { workspace = true }
-rand = { workspace = true }
+rand = { workspace = true, features = ["std", "getrandom"] }
 
 [dev-dependencies]
 serde_json = "1"
