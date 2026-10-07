@@ -122,11 +122,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      # The release order matters (dependencies first); --allow-dirty is not
-      # needed on CI because the tree is clean there.
+      # Only tpt-axiom-ir has no unpublished workspace dependencies, so it
+      # is the only crate that can be fully dry-run before the first
+      # release; the rest are packaged (file list + manifest validation)
+      # without registry resolution. Once everything is on crates.io, this
+      # can become a full `cargo publish --dry-run` loop in release order.
+      - run: cargo publish --dry-run -p tpt-axiom-ir
       - run: |
-          for crate in tpt-axiom-ir tpt-axiom-core tpt-axiom-zk tpt-axiom-macros tpt-axiom-verify tpt-axiom-backend-halo2 tpt-axiom-backend-arkworks tpt-axiom-interop tpt-axiom-cli tpt-axiom; do
-            cargo publish --dry-run -p "$crate" || exit 1
+          for crate in tpt-axiom-core tpt-axiom-zk tpt-axiom-macros tpt-axiom-verify tpt-axiom-backend-halo2 tpt-axiom-backend-arkworks tpt-axiom-interop tpt-axiom-cli tpt-axiom; do
+            cargo package --list -p "$crate" > /dev/null || exit 1
           done
 
   bench:
@@ -140,6 +144,10 @@ jobs:
 
   semver:
     name: semver-checks
+    # cargo-semver-checks diffs against the latest crates.io release, so it
+    # only works once the crate is published. Set the repository variable
+    # SEMVER_CHECKS=true after the first release to enable it.
+    if: vars.SEMVER_CHECKS == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -160,15 +168,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-hack
       # The foundation's feature matrix is small and every combination must
-      # compile (std vs libm, serde on/off, and their crossings).
-      - run: cargo hack check -p tpt-axiom-core --feature-powerset --no-dev-deps
+      # compile (std vs libm, serde on/off, and their crossings). A float
+      # backend is mandatory, so the no-backend combination is excluded.
+      - run: cargo hack check -p tpt-axiom-core --feature-powerset --no-dev-deps --at-least-one-of std,libm
 
   book:
     name: docs book
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: jontyy/mdbook-actions@master
+      - uses: peaceiris/actions-mdbook@v2
         with:
           mdbook-version: latest
       - run: mdbook build docs/book
